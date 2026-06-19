@@ -1,0 +1,2 @@
+# ClipPoems Stopwords List
+# One word per line (UTF-8)

@@ -1,0 +1,12 @@
+[
+  {
+    "id": "modern-001",
+    "title": "荷塘月色（节选）",
+    "author": "朱自清",
+    "source": "荷塘月色",
+    "type": "modern_literature",
+    "content": "曲曲折折的荷塘上面，弥望的是田田的叶子。叶子出水很高，像亭亭的舞女的裙。",
+    "tags": ["自然", "荷塘", "月色"],
+    "difficulty": 1
+  }
+]

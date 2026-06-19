@@ -34,3 +34,25 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Prisma
+*.db
+*.db-journal
+
+# Python corpus service
+corpus-service/__pycache__/
+corpus-service/*.pyc
+corpus-service/.venv/
+corpus-service/venv/
+
+# Tauri build artifacts
+tauri/target/
+
+# OS
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~

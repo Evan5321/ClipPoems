@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Canvas {
+  id        String           @id @default(cuid())
+  name      String
+  width     Int              @default(800)
+  height    Int              @default(600)
+  background String          @default("{\"type\":\"solid\",\"value\":\"#ffffff\",\"opacity\":1}")
+  grid      String           @default("{\"enabled\":false,\"spacing\":20}")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  fragments CanvasFragment[]
+}
+
+model CanvasFragment {
+  id                String   @id @default(cuid())
+  canvasId          String
+  canvas            Canvas   @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  corpusFragmentId  String?
+  text              String
+  positionX         Float    @default(0)
+  positionY         Float    @default(0)
+  rotation          Float    @default(0)
+  scale             Float    @default(1)
+  zIndex            Int      @default(0)
+  fontFamily        String   @default("serif")
+  fontSize          Int      @default(24)
+  color             String   @default("#1a1a1a")
+  letterSpacing     Float    @default(0)
+  lineHeight        Float    @default(1.5)
+  opacity           Float    @default(1)
+  direction         String   @default("horizontal")
+  locked            Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([canvasId])
+}
+
+model Work {
+  id        String   @id @default(cuid())
+  name      String
+  thumbnail String?
+  canvasId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"c:/Users/liyunlin/Desktop/ClipPoems/src/app/editor/\\\\[id\\\\]\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/app/corpus\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/app/gallery\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/components/editor\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/components/corpus\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/components/settings\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/components/ui\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/components/shared\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/store\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/lib/canvas\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/lib/corpus\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/lib/utils\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/hooks\" \"c:/Users/liyunlin/Desktop/ClipPoems/src/types\" \"c:/Users/liyunlin/Desktop/ClipPoems/prisma\" \"c:/Users/liyunlin/Desktop/ClipPoems/corpus-service/routers\" \"c:/Users/liyunlin/Desktop/ClipPoems/corpus-service/services\" \"c:/Users/liyunlin/Desktop/ClipPoems/corpus-service/data/builtin_corpus\" \"c:/Users/liyunlin/Desktop/ClipPoems/corpus-data\" \"c:/Users/liyunlin/Desktop/ClipPoems/tauri/src\" \"c:/Users/liyunlin/Desktop/ClipPoems/tauri/icons\" \"c:/Users/liyunlin/Desktop/ClipPoems/public/textures\" \"c:/Users/liyunlin/Desktop/ClipPoems/public/fonts\")",
+      "Bash(pnpm install *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\liyunlin\\Desktop\\ClipPoems\\src\\app\\editor\\[id"
+    ]
+  }
+}

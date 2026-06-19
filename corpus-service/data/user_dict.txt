@@ -1,0 +1,3 @@
+# ClipPoems Custom Dictionary for jieba
+# Format: word freq pos
+# One entry per line

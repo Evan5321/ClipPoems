@@ -1,0 +1,10 @@
+[
+  {
+    "id": "daily-001",
+    "text": "清晨的阳光透过窗帘洒在地板上。",
+    "source": "日常语料库",
+    "type": "daily_corpus",
+    "tags": ["日常", "清晨", "阳光"],
+    "wordCount": 5
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "name": "ClipPoems - 剪贴诗",
+  "short_name": "ClipPoems",
+  "description": "拼贴诗歌创作工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": []
+}
