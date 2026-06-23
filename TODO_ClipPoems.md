@@ -6,22 +6,24 @@
 
 ## Phase 0：项目初始化（约 1 天）
 
-- [ ] ⏳ 初始化 Next.js + TypeScript + Tailwind 项目
-- [ ] ⏳ 安装所有核心依赖（dnd-kit, framer-motion, zustand 等）
-- [ ] ⏳ 初始化 shadcn/ui 组件库
-- [ ] ⏳ 配置 Prisma + SQLite
-- [ ] ⏳ 初始化 Python FastAPI 语料服务项目结构
-- [ ] ⏳ 配置 ESLint + Prettier
-- [ ] ⏳ 初始化 Git 仓库 + .gitignore
-- [ ] ⏳ 搭建基础目录结构（components, store, lib, hooks, types）
+- [x] ✅ 初始化 Next.js + TypeScript + Tailwind 项目
+- [x] ✅ 安装所有核心依赖（dnd-kit, framer-motion, zustand 等）
+- [x] ✅ 初始化 shadcn/ui 组件库
+- [x] ✅ 配置 Prisma + SQLite
+- [x] ✅ 初始化 Python FastAPI 语料服务项目结构
+- [x] ✅ 配置 ESLint + Prettier
+- [x] ✅ 初始化 Git 仓库 + .gitignore
+- [x] ✅ 搭建基础目录结构（components, store, lib, hooks, types）
 
 ## Phase 1：语料库系统（约 5 天）
 
-### 1.1 语料数据结构与存储
-- [ ] ⏳ 定义 TypeScript 类型：`CorpusFragment`, `Corpus`, `CorpusCategory`
-- [ ] ⏳ 编写内置语料数据（JSON 格式）：经典诗歌 100+ 首
-- [ ] ⏳ 编写内置语料数据：成语/熟语 500+ 条
-- [ ] ⏳ 实现语料库加载逻辑（本地 JSON → Zustand store）
+### 1.1 语料数据结构与存储 ✅ 已完成
+- [x] ✅ 定义 TypeScript 类型：`CorpusFragment`, `Corpus`, `CorpusCategory`, `CorpusEntry`, `TokenizeResult`
+- [x] ✅ 编写内置语料数据（JSON 格式）：经典诗歌 117 首
+- [x] ✅ 编写内置语料数据：成语/熟语 530 条
+- [x] ✅ 实现语料库加载逻辑（本地 JSON → Zustand store）
+- [x] ✅ 实现语法搜索（关键词、来源、标签）
+- [x] ✅ 实现撕裂边缘生成算法
 
 ### 1.2 语料选取 UI
 - [ ] ⏳ 实现语料面板布局（左侧面板容器）
@@ -29,7 +31,7 @@
 - [ ] ⏳ 实现**自主选词模式**：语料全文浏览 + 关键词搜索 + 分类筛选
 - [ ] ⏳ 实现**文章划词模式**：展示全文 → 鼠标划选文本 → 高亮选中片段
 - [ ] ⏳ 实现选中语料列表（已选中的碎片预览，可取消）
-- [ ] ⏳ 实现语料搜索（关键词、词性、来源、字数范围）
+- [ ] ⏳ 实现语料搜索 UI（关键词、词性、来源、字数范围）
 
 ### 1.3 Python 分词服务
 - [ ] ⏳ 搭建 FastAPI 基础框架（CORS、路由）
@@ -79,7 +81,7 @@
 - [ ] ⏳ 实现字间距、行间距默认值设置
 
 ### 3.3 保存与导出
-- [ ] ⏳ 实现自动保存（每 30s 保存到 IndexedDB）
+- [ ] ⏳ 实现自动保存（每 30s 保存到 localStorage）
 - [ ] ⏳ 实现手动保存 / 另存为
 - [ ] ⏳ 实现作品列表页（网格视图、缩略图、搜索）
 - [ ] ⏳ 实现导出为 PNG（html2canvas）

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import AppProvider from '@/components/AppProvider';
 
 export const metadata: Metadata = {
   title: 'ClipPoems - 剪贴诗',
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <AppProvider>{children}</AppProvider>
+      </body>
     </html>
   );
 }
