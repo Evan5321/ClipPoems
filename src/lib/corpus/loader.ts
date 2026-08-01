@@ -198,6 +198,22 @@ export async function loadAllCorpusData(): Promise<CorpusDataMap> {
   };
 }
 
+/* ===== 原始条目（供文章划词模式使用） ===== */
+
+export type CorpusRawMap = Record<string, CorpusEntry[]>;
+
+/**
+ * 加载所有内置语料的原始条目（整诗/整篇，未切分）
+ */
+export function loadAllCorpusRawData(): CorpusRawMap {
+  return {
+    classical_poetry:  poetryRaw as CorpusEntry[],
+    idiom:             idiomRaw as CorpusEntry[],
+    modern_literature: modernRaw as CorpusEntry[],
+    daily_corpus:      dailyRaw as CorpusEntry[],
+  };
+}
+
 /**
  * 搜索碎片
  */

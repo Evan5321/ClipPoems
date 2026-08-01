@@ -1,19 +1,33 @@
 'use client';
 
+import { useState } from 'react';
 import { useCorpusStore } from '@/store/corpusStore';
 import { CORPUS_CATEGORIES } from '@/lib/corpus/loader';
 import CorpusSearch from './CorpusSearch';
 import FragmentGrid from './FragmentGrid';
+import ArticleSelector from './ArticleSelector';
+import RecommendedWords from './RecommendedWords';
 import WordSelector from './WordSelector';
+
+type ViewMode = 'grid' | 'article' | 'recommended';
+
+const VIEW_MODES: { id: ViewMode; label: string }[] = [
+  { id: 'grid', label: '碎片网格' },
+  { id: 'article', label: '文章划词' },
+  { id: 'recommended', label: '推荐分词' },
+];
 
 export default function CorpusPanel() {
   const { currentCorpusId, setCurrentCorpus, isLoaded, isLoading } = useCorpusStore();
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+
+  const isIdiom = currentCorpusId === 'idiom';
 
   return (
     <div className="mx-auto flex h-full max-w-6xl flex-col">
-      {/* 顶部：分类标签 */}
-      <div className="flex items-center gap-2 border-b px-4 py-3">
-        <h2 className="mr-2 text-sm font-semibold text-muted-foreground">语料库</h2>
+      {/* 顶部：分类标签 + 模式切换 */}
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        {/* 分类标签 */}
         <div className="flex flex-wrap gap-1.5">
           {CORPUS_CATEGORIES.map((cat) => {
             const isActive = currentCorpusId === cat.id;
@@ -36,12 +50,39 @@ export default function CorpusPanel() {
             );
           })}
         </div>
+
+        {/* 模式切换 */}
+        <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+          {VIEW_MODES.map((mode) => {
+            const isActive = viewMode === mode.id;
+            const disabled = mode.id === 'article' && isIdiom;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => !disabled && setViewMode(mode.id)}
+                disabled={disabled}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-background text-foreground shadow-sm'
+                    : disabled
+                      ? 'text-muted-foreground/40 cursor-not-allowed'
+                      : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title={disabled && mode.id === 'article' ? '成语分类不支持文章划词' : undefined}
+              >
+                {mode.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* 搜索栏 */}
-      <div className="border-b px-4 py-2.5">
-        <CorpusSearch />
-      </div>
+      {/* 搜索栏（只在 grid 模式显示） */}
+      {viewMode === 'grid' && (
+        <div className="border-b px-4 py-2.5">
+          <CorpusSearch />
+        </div>
+      )}
 
       {/* 加载状态 */}
       {isLoading && (
@@ -68,10 +109,12 @@ export default function CorpusPanel() {
         </div>
       )}
 
-      {/* 碎片网格 / 搜索结果 */}
+      {/* 主内容区 */}
       {isLoaded && (
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          <FragmentGrid />
+          {viewMode === 'grid' && <FragmentGrid />}
+          {viewMode === 'article' && !isIdiom && <ArticleSelector />}
+          {viewMode === 'recommended' && <RecommendedWords />}
         </div>
       )}
 

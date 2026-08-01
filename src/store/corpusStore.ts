@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import type { CorpusFragment, Corpus } from '@/types/corpus';
+import type { CorpusFragment, Corpus, CorpusEntry } from '@/types/corpus';
 import {
   loadAllCorpusData,
   searchFragments,
+  loadAllCorpusRawData,
   BUILTIN_CORPORA,
   type CorpusDataMap,
+  type CorpusRawMap,
 } from '@/lib/corpus/loader';
 
 interface CorpusState {
@@ -12,6 +14,8 @@ interface CorpusState {
   corpora: Corpus[];
   /** 所有已加载的碎片（按分类ID索引） */
   fragmentsByCategory: CorpusDataMap;
+  /** 所有原始语料条目（按分类ID索引，供文章划词使用） */
+  rawEntriesByCategory: CorpusRawMap;
   /** 用户已经选中的碎片（待拖入画布） */
   selectedFragments: CorpusFragment[];
   /** 搜索关键词 */
@@ -43,11 +47,14 @@ interface CorpusState {
   getCurrentFragments: () => CorpusFragment[];
   /** 获取指定分类的碎片 */
   getFragmentsByCategory: (categoryId: string) => CorpusFragment[];
+  /** 获取当前分类的原始条目列表 */
+  getCurrentRawEntries: () => CorpusEntry[];
 }
 
 export const useCorpusStore = create<CorpusState>((set, get) => ({
   corpora: [...BUILTIN_CORPORA],
   fragmentsByCategory: {},
+  rawEntriesByCategory: {},
   selectedFragments: [],
   searchQuery: '',
   currentCorpusId: 'classical_poetry',
@@ -58,9 +65,13 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
   loadAllCorpora: async () => {
     set({ isLoading: true });
     try {
-      const data = await loadAllCorpusData();
+      const [data, rawData] = await Promise.all([
+        loadAllCorpusData(),
+        Promise.resolve(loadAllCorpusRawData()),
+      ]);
       set({
         fragmentsByCategory: data,
+        rawEntriesByCategory: rawData,
         corpora: [...BUILTIN_CORPORA],
         isLoaded: true,
         isLoading: false,
@@ -107,5 +118,11 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
 
   getFragmentsByCategory: (categoryId) => {
     return get().fragmentsByCategory[categoryId] || [];
+  },
+
+  getCurrentRawEntries: () => {
+    const { currentCorpusId, rawEntriesByCategory } = get();
+    if (!currentCorpusId) return [];
+    return rawEntriesByCategory[currentCorpusId] || [];
   },
 }));
