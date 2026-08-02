@@ -30,7 +30,7 @@ function randomOffset(maxOffset: number, rand: () => number): number {
 
 /**
  * 生成撕裂边缘的 clip-path polygon 点集
- * 返回格式为 CSS polygon() 可用的字符串
+ * 返回百分比格式的 polygon 值，适配任意尺寸
  */
 export function generateTornEdge(options: TornEdgeOptions): string {
   const {
@@ -50,7 +50,6 @@ export function generateTornEdge(options: TornEdgeOptions): string {
   for (let i = 0; i <= segments; i++) {
     const x = (width * i) / segments;
     const y = randomOffset(maxOffsetY * 0.4, rand);
-    // 避免开始的点偏移太大
     const finalY = (i === 0 || i === segments) ? 0 : y;
     points.push([x, finalY]);
   }
@@ -78,6 +77,26 @@ export function generateTornEdge(options: TornEdgeOptions): string {
   }
 
   return points.map((p) => `${p[0].toFixed(1)}px ${p[1].toFixed(1)}px`).join(', ');
+}
+
+/**
+ * 生成百分比格式的撕裂边缘 clip-path（适配任意容器尺寸）
+ */
+export function generateTornEdgePercent(options: Omit<TornEdgeOptions, 'width' | 'height'> & { width?: number; height?: number }): string {
+  const w = options.width || 200;
+  const h = options.height || 100;
+  const pixelPath = generateTornEdge({ ...options, width: w, height: h });
+
+  // 将像素值转为百分比
+  return pixelPath
+    .split(', ')
+    .map((point) => {
+      const [px, py] = point.split(' ');
+      const xPx = parseFloat(px);
+      const yPx = parseFloat(py);
+      return `${((xPx / w) * 100).toFixed(1)}% ${((yPx / h) * 100).toFixed(1)}%`;
+    })
+    .join(', ');
 }
 
 /**

@@ -23,6 +23,13 @@ export interface CanvasFragment {
   zIndex: number;
   style: CanvasFragmentStyle;
   locked: boolean;
+  /** 撕裂边缘 clip-path polygon CSS 值 */
+  clipPath?: string;
+  /** 碎片宽高（由文本内容计算） */
+  width?: number;
+  height?: number;
+  /** 是否被用户手动调整过尺寸（true 时字号/文字变化不再重算宽高） */
+  userSized?: boolean;
 }
 
 export interface CanvasBackground {
