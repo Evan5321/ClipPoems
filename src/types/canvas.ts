@@ -7,6 +7,8 @@ export interface CanvasFragmentStyle {
   fontFamily: string;
   fontSize: number;
   color: string;
+  /** 碎片背景色 */
+  backgroundColor?: string;
   letterSpacing: number;
   lineHeight: number;
   opacity: number;
@@ -41,6 +43,25 @@ export interface CanvasBackground {
 export interface CanvasGrid {
   enabled: boolean;
   spacing: number;
+}
+
+/** 全局文字默认样式（新建碎片的初始样式） */
+export interface GlobalTextStyle {
+  fontFamily?: string;
+  fontSize?: number;
+  color?: string;
+  letterSpacing?: number;
+  lineHeight?: number;
+  direction?: 'horizontal' | 'vertical';
+}
+
+/** 画布完整快照（用于保存/恢复/导出） */
+export interface CanvasSnapshot {
+  fragments: CanvasFragment[];
+  background: CanvasBackground;
+  grid: CanvasGrid;
+  canvasSize: { width: number; height: number };
+  globalTextStyle: GlobalTextStyle;
 }
 
 export interface Canvas {

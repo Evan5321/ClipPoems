@@ -5,7 +5,8 @@ export type CorpusCategoryType =
   | 'classical_poetry'
   | 'modern_literature'
   | 'idiom'
-  | 'daily_corpus';
+  | 'daily_corpus'
+  | 'recommend_corpus';
 
 /** 原始语料条目 — 从 JSON 加载时的结构 */
 export interface CorpusEntry {

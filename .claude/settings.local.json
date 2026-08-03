@@ -19,7 +19,8 @@
       "Bash(curl -s \"http://localhost:8000/api/corpus/search?category=idiom&limit=2\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Total: {d[\\\\\"total\\\\\"]}'\\); [print\\(f'  text={r.get\\(\\\\\"text\\\\\",\\\\\"?\\\\\"\\)[:30]} author={r.get\\(\\\\\"author\\\\\",\\\\\"?\\\\\"\\)}'\\) for r in d['results'][:2]]\")",
       "Bash(python3 *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(sed -n '169,220p' \\\\\"D:/Git_Projects/ClipPoems/src/store/canvasStore.ts\\\\\" *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\liyunlin\\Desktop\\ClipPoems\\src\\app\\editor\\[id"

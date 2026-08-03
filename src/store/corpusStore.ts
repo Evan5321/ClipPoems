@@ -8,6 +8,7 @@ import {
   type CorpusDataMap,
   type CorpusRawMap,
 } from '@/lib/corpus/loader';
+import { loadSelectedDraft, saveSelectedDraft } from '@/lib/corpus/fragmentGroups';
 
 interface CorpusState {
   /** 语料库元数据列表 */
@@ -24,6 +25,12 @@ interface CorpusState {
   currentCorpusId: string | null;
   /** 搜索结果 */
   searchResults: CorpusFragment[];
+  /** 随机模式是否开启 */
+  randomMode: boolean;
+  /** 随机抽取的碎片列表 */
+  randomFragments: CorpusFragment[];
+  /** 随机范围 */
+  randomScope: 'current' | 'all';
   /** 加载状态 */
   isLoading: boolean;
   /** 是否已初始化 */
@@ -43,6 +50,12 @@ interface CorpusState {
   removeFragment: (id: string) => void;
   /** 清空选中列表 */
   clearSelection: () => void;
+  /** 加载碎片组到选中列表（替换当前选中） */
+  loadFragmentGroup: (fragments: CorpusFragment[]) => void;
+  /** 随机抽取碎片（scope: 'current' 当前分类 | 'all' 全部分类） */
+  loadRandom: (count: number, scope: 'current' | 'all') => void;
+  /** 退出随机模式 */
+  exitRandom: () => void;
   /** 获取当前语料库的所有碎片 */
   getCurrentFragments: () => CorpusFragment[];
   /** 获取指定分类的碎片 */
@@ -55,10 +68,13 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
   corpora: [...BUILTIN_CORPORA],
   fragmentsByCategory: {},
   rawEntriesByCategory: {},
-  selectedFragments: [],
+  selectedFragments: loadSelectedDraft(),
   searchQuery: '',
-  currentCorpusId: 'classical_poetry',
+  currentCorpusId: 'recommend_corpus',
   searchResults: [],
+  randomMode: false,
+  randomFragments: [],
+  randomScope: 'current',
   isLoading: false,
   isLoaded: false,
 
@@ -84,10 +100,11 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
 
   setCorpora: (corpora) => set({ corpora }),
 
-  setCurrentCorpus: (id) => set({ currentCorpusId: id }),
+  setCurrentCorpus: (id) =>
+    set({ currentCorpusId: id, randomMode: false, randomFragments: [], randomScope: 'current' }),
 
   setSearchQuery: (query) => {
-    set({ searchQuery: query });
+    set({ searchQuery: query, randomMode: false, randomFragments: [] });
     if (!query.trim()) {
       set({ searchResults: [] });
       return;
@@ -97,18 +114,56 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
   },
 
   addFragment: (fragment) =>
-    set((state) => ({
-      selectedFragments: state.selectedFragments.some((f) => f.id === fragment.id)
+    set((state) => {
+      const selectedFragments = state.selectedFragments.some((f) => f.id === fragment.id)
         ? state.selectedFragments
-        : [...state.selectedFragments, fragment],
-    })),
+        : [...state.selectedFragments, fragment];
+      saveSelectedDraft(selectedFragments);
+      return { selectedFragments };
+    }),
 
   removeFragment: (id) =>
-    set((state) => ({
-      selectedFragments: state.selectedFragments.filter((f) => f.id !== id),
-    })),
+    set((state) => {
+      const selectedFragments = state.selectedFragments.filter((f) => f.id !== id);
+      saveSelectedDraft(selectedFragments);
+      return { selectedFragments };
+    }),
 
-  clearSelection: () => set({ selectedFragments: [] }),
+  clearSelection: () => {
+    saveSelectedDraft([]);
+    set({ selectedFragments: [] });
+  },
+
+  loadFragmentGroup: (fragments) => {
+    saveSelectedDraft(fragments);
+    set({ selectedFragments: fragments });
+  },
+
+  loadRandom: (count, scope) => {
+    const { fragmentsByCategory, currentCorpusId } = get();
+    let pool: CorpusFragment[] = [];
+    if (scope === 'current') {
+      pool = (currentCorpusId ? fragmentsByCategory[currentCorpusId] : []) || [];
+    } else {
+      pool = Object.values(fragmentsByCategory).flat();
+    }
+    // Fisher-Yates 洗牌
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    set({
+      randomMode: true,
+      randomFragments: shuffled.slice(0, count),
+      randomScope: scope,
+      searchQuery: '',
+      searchResults: [],
+    });
+  },
+
+  exitRandom: () =>
+    set({ randomMode: false, randomFragments: [], randomScope: 'current' }),
 
   getCurrentFragments: () => {
     const { currentCorpusId, fragmentsByCategory } = get();

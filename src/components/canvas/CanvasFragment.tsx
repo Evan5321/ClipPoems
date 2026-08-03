@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { useDraggable } from '@dnd-kit/core';
+import { RotateCw } from 'lucide-react';
 import type { CanvasFragment } from '@/types/canvas';
 import { generateTornEdgePercent } from '@/lib/canvas/clipPaths';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -12,13 +12,11 @@ interface CanvasFragmentProps {
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (updates: Partial<CanvasFragment>) => void;
-  /** 双击进入编辑模式（外部可监听） */
   onDoubleClick?: () => void;
-  /** 画布缩放（用于手柄拖拽补偿） */
   canvasZoom?: number;
 }
 
-/** 估算文本尺寸（与 store 中一致，确保默认单行显示） */
+/** 估算文本尺寸 */
 function estimateTextSize(text: string, fontSize: number): { width: number; height: number } {
   const charWidth = fontSize * 1.05;
   const padding = 16;
@@ -35,7 +33,6 @@ function angleDeg(ax: number, ay: number, bx: number, by: number): number {
   return (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
 }
 
-/** 缩放手柄类型 */
 type ResizeMode = 'corner' | 'right' | 'bottom';
 
 export default function CanvasFragmentComponent({
@@ -48,6 +45,7 @@ export default function CanvasFragmentComponent({
 }: CanvasFragmentProps) {
   const { text, position, rotation, scale, style, clipPath, locked } = fragment;
   const fontSize = style?.fontSize || 24;
+  const backgroundColor = style?.backgroundColor || '#ffffff';
   const { width: estWidth, height: estHeight } = useMemo(
     () => estimateTextSize(text, fontSize),
     [text, fontSize],
@@ -55,7 +53,7 @@ export default function CanvasFragmentComponent({
   const fragmentWidth = fragment.width || estWidth;
   const fragmentHeight = fragment.height || estHeight;
 
-  // 撕裂边缘（百分比格式，稳定）
+  // 撕裂边缘（百分比，稳定）
   const tornClipPath = useMemo(() => {
     if (clipPath) return clipPath;
     const hash = fragment.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
@@ -75,21 +73,16 @@ export default function CanvasFragmentComponent({
   const updateFragmentText = useCanvasStore((s) => s.updateFragmentText);
   const resizeFragment = useCanvasStore((s) => s.resizeFragment);
 
-  // 进入编辑时同步 draft 并聚焦
   useEffect(() => {
     if (isEditing) {
       setDraftText(text);
       requestAnimationFrame(() => {
         const ta = textareaRef.current;
-        if (ta) {
-          ta.focus();
-          ta.select();
-        }
+        if (ta) { ta.focus(); ta.select(); }
       });
     }
   }, [isEditing, text]);
 
-  // 文本变化时若不在编辑模式，同步 draft
   useEffect(() => {
     if (!isEditing) setDraftText(text);
   }, [text, isEditing]);
@@ -102,18 +95,15 @@ export default function CanvasFragmentComponent({
     setIsEditing(false);
   }, [draftText, text, fragment.id, updateFragmentText]);
 
-  const enterEdit = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (locked) return;
-      setIsEditing(true);
-      onDoubleClick?.();
-    },
-    [locked, onDoubleClick],
-  );
+  const enterEdit = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (locked) return;
+    setIsEditing(true);
+    onDoubleClick?.();
+  }, [locked, onDoubleClick]);
 
-  // dnd-kit 拖拽
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  // dnd-kit draggable — only drag listeners, NOT attributes (to avoid conflict)
+  const { listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: fragment.id,
     data: {
       type: 'canvas-fragment',
@@ -122,10 +112,10 @@ export default function CanvasFragmentComponent({
     disabled: locked || isEditing,
   });
 
-  // 视觉 transform
-  const combinedTransform = transform
-    ? `translate(${transform.x}px, ${transform.y}px) rotate(${rotation}deg) scale(${isDragging ? scale * 1.05 : scale})`
-    : `rotate(${rotation}deg) scale(${scale})`;
+  // 手动计算 transform，避免 framer-motion 覆盖
+  const posTransform = transform
+    ? `translate(${transform.x}px, ${transform.y}px)`
+    : '';
 
   const boxShadow = isDragging
     ? '0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.15)'
@@ -133,7 +123,7 @@ export default function CanvasFragmentComponent({
       ? '0 2px 8px rgba(0,0,0,0.15), 0 0 0 2px rgba(59, 130, 246, 0.6)'
       : '0 1px 4px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06)';
 
-  // ----- 缩放手柄拖拽（调整 width / height，考虑旋转） -----
+  // ----- 缩放手柄 -----
   const resizeDragRef = useRef<{
     mode: ResizeMode;
     startScreenX: number;
@@ -154,7 +144,7 @@ export default function CanvasFragmentComponent({
         startWidth: fragmentWidth,
         startHeight: fragmentHeight,
       };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },
     [locked, fragmentWidth, fragmentHeight],
   );
@@ -163,35 +153,30 @@ export default function CanvasFragmentComponent({
     (e: React.PointerEvent) => {
       const ref = resizeDragRef.current;
       if (!ref) return;
-      // 屏幕位移 → 画布位移（除以 zoom）
       const dx = (e.clientX - ref.startScreenX) / canvasZoom;
       const dy = (e.clientY - ref.startScreenY) / canvasZoom;
-      // 画布位移 → 碎片局部位移（反向旋转，因为碎片自身旋转了 rotation 度）
-      const rad = (-rotation * Math.PI) / 180;
-      const localDx = dx * Math.cos(rad) - dy * Math.sin(rad);
-      const localDy = dx * Math.sin(rad) + dy * Math.cos(rad);
 
       let newWidth = ref.startWidth;
       let newHeight = ref.startHeight;
       if (ref.mode === 'corner' || ref.mode === 'right') {
-        newWidth = ref.startWidth + localDx;
+        newWidth = ref.startWidth + dx;
       }
       if (ref.mode === 'corner' || ref.mode === 'bottom') {
-        newHeight = ref.startHeight + localDy;
+        newHeight = ref.startHeight + dy;
       }
       resizeFragment(fragment.id, newWidth, newHeight);
     },
-    [canvasZoom, rotation, fragment.id, resizeFragment],
+    [canvasZoom, fragment.id, resizeFragment],
   );
 
   const handleResizePointerUp = useCallback((e: React.PointerEvent) => {
     if (resizeDragRef.current) {
       resizeDragRef.current = null;
-      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     }
   }, []);
 
-  // ----- 旋转手柄拖拽 -----
+  // ----- 旋转手柄 -----
   const rotateDragRef = useRef<{
     startRotation: number;
     startAngle: number;
@@ -202,7 +187,9 @@ export default function CanvasFragmentComponent({
       if (locked) return;
       e.stopPropagation();
       e.preventDefault();
-      const node = e.currentTarget.parentElement as HTMLElement;
+      const node = (e.currentTarget as HTMLElement)
+        .closest('[data-fragment-id]') as HTMLElement;
+      if (!node) return;
       const rect = node.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
@@ -210,7 +197,7 @@ export default function CanvasFragmentComponent({
         startRotation: rotation,
         startAngle: angleDeg(cx, cy, e.clientX, e.clientY),
       };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },
     [rotation, locked],
   );
@@ -219,18 +206,18 @@ export default function CanvasFragmentComponent({
     (e: React.PointerEvent) => {
       const ref = rotateDragRef.current;
       if (!ref) return;
-      const node = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
+      const node = (e.currentTarget as HTMLElement)
+        .closest('[data-fragment-id]') as HTMLElement;
+      if (!node) return;
       const rect = node.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       const curAngle = angleDeg(cx, cy, e.clientX, e.clientY);
       const delta = curAngle - ref.startAngle;
       let next = ref.startRotation + delta;
-      // Shift 吸附到 15° 倍数
       if (e.shiftKey) {
         next = Math.round(next / 15) * 15;
       }
-      // 归一化到 [-180, 180]
       while (next > 180) next -= 360;
       while (next < -180) next += 360;
       onUpdate({ rotation: Number(next.toFixed(2)) });
@@ -241,11 +228,11 @@ export default function CanvasFragmentComponent({
   const handleRotatePointerUp = useCallback((e: React.PointerEvent) => {
     if (rotateDragRef.current) {
       rotateDragRef.current = null;
-      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     }
   }, []);
 
-  // 文字样式：宽度足够时一行显示，拖窄后自动换行（PPT 文本框行为）
+  // 文字样式
   const textSpanStyle: React.CSSProperties = {
     fontFamily: style?.fontFamily || 'serif',
     fontSize,
@@ -268,12 +255,11 @@ export default function CanvasFragmentComponent({
   };
 
   const showHandles = isSelected && !isEditing && !locked && !isDragging;
-  // 手柄尺寸（随 zoom 反向缩放，保持视觉恒定）
   const handleSize = 10 / canvasZoom;
+  const rotateHandleSize = 16 / canvasZoom;
   const borderWidth = Math.max(1, 1.5 / canvasZoom);
-  const rotateOffset = 26 / canvasZoom;
+  const rotateOffset = 32 / canvasZoom;
 
-  // 通用手柄样式
   const handleBase: React.CSSProperties = {
     position: 'absolute',
     background: '#ffffff',
@@ -283,14 +269,18 @@ export default function CanvasFragmentComponent({
     zIndex: 10,
   };
 
+  // 构建 transform 字符串（避免 framer-motion 覆盖）
+  // 只用 style.transform，不用 motion 的 animate
+  const finalTransform = [
+    posTransform,
+    `rotate(${rotation}deg)`,
+    `scale(${isDragging ? scale * 1.05 : scale})`,
+  ].filter(Boolean).join(' ');
+
   return (
-    <motion.div
+    <div
       ref={setNodeRef}
       data-fragment-id={fragment.id}
-      initial={{ opacity: 0, scale: 0.6 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, y: 30, transition: { duration: 0.25 } }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.8 }}
       style={{
         position: 'absolute',
         left: position.x,
@@ -299,65 +289,75 @@ export default function CanvasFragmentComponent({
         height: fragmentHeight,
         zIndex: isDragging ? 9999 : fragment.zIndex,
         cursor: locked ? 'default' : isEditing ? 'text' : isDragging ? 'grabbing' : 'grab',
-        clipPath: `polygon(${tornClipPath})`,
-        WebkitClipPath: `polygon(${tornClipPath})`,
-        background: '#ffffff',
         boxShadow,
-        borderRadius: 0,
-        transform: combinedTransform,
+        transform: finalTransform,
         transformOrigin: 'center center',
         willChange: isDragging ? 'transform' : 'auto',
         userSelect: isEditing ? 'text' : 'none',
-        overflow: isEditing ? 'visible' : 'hidden',
       }}
       onClick={(e) => {
         e.stopPropagation();
         if (!isEditing) onSelect();
       }}
       onDoubleClick={enterEdit}
-      {...(locked || isEditing ? {} : { ...attributes, ...listeners })}
     >
-      {isEditing ? (
-        <textarea
-          ref={textareaRef}
-          value={draftText}
-          onChange={(e) => setDraftText(e.target.value)}
-          onBlur={commitEdit}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              commitEdit();
-            }
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              commitEdit();
-            }
-          }}
-          style={{
-            ...textSpanStyle,
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            resize: 'none',
-            border: 'none',
-            outline: 'none',
-            background: 'rgba(255,255,255,0.95)',
-            boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.5)',
-            fontFamily: style?.fontFamily || 'serif',
-            fontSize,
-            color: style?.color || '#333333',
-          }}
-        />
-      ) : (
-        <span style={textSpanStyle}>{text}</span>
-      )}
+      {/* 内容层：listenrs 绑在这里防止手柄触发 drag */}
+      <div
+        {...(locked || isEditing ? {} : listeners || {})}
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: '100%',
+          clipPath: `polygon(${tornClipPath})`,
+          WebkitClipPath: `polygon(${tornClipPath})`,
+          background: backgroundColor,
+          overflow: isEditing ? 'visible' : 'hidden',
+          borderRadius: 0,
+          pointerEvents: 'auto',
+        }}
+      >
+        {isEditing ? (
+          <textarea
+            ref={textareaRef}
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                commitEdit();
+              }
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                commitEdit();
+              }
+            }}
+            style={{
+              ...textSpanStyle,
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              resize: 'none',
+              border: 'none',
+              outline: 'none',
+              background: backgroundColor,
+              boxShadow: 'inset 0 0 0 1px rgba(59,130,246,0.5)',
+              fontFamily: style?.fontFamily || 'serif',
+              fontSize,
+              color: style?.color || '#333333',
+            }}
+          />
+        ) : (
+          <span style={textSpanStyle}>{text}</span>
+        )}
+      </div>
 
-      {/* 旋转 + 缩放手柄（仅选中时显示） */}
+      {/* 手柄层 */}
       {showHandles && (
         <>
-          {/* 旋转手柄：顶部上方圆点 + 连接线 */}
+          {/* 旋转手柄 */}
           <div
             onPointerDown={handleRotatePointerDown}
             onPointerMove={handleRotatePointerMove}
@@ -367,11 +367,14 @@ export default function CanvasFragmentComponent({
               ...handleBase,
               left: '50%',
               top: -rotateOffset,
-              width: handleSize,
-              height: handleSize,
-              marginLeft: -handleSize / 2,
+              width: rotateHandleSize,
+              height: rotateHandleSize,
+              marginLeft: -rotateHandleSize / 2,
               borderRadius: '50%',
               cursor: 'grab',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
             title="拖拽旋转（按 Shift 吸附 15°）"
           >
@@ -379,16 +382,24 @@ export default function CanvasFragmentComponent({
               style={{
                 position: 'absolute',
                 left: '50%',
-                top: handleSize,
+                top: rotateHandleSize,
                 width: borderWidth,
-                height: rotateOffset - handleSize,
+                height: rotateOffset - rotateHandleSize,
                 marginLeft: -borderWidth / 2,
                 background: 'rgba(59,130,246,0.7)',
               }}
             />
+            <RotateCw
+              style={{
+                width: rotateHandleSize * 0.6,
+                height: rotateHandleSize * 0.6,
+                color: 'rgba(59,130,246,0.9)',
+                pointerEvents: 'none',
+              }}
+            />
           </div>
 
-          {/* 右下角手柄：自由调整宽高 */}
+          {/* 右下角缩放手柄 */}
           <div
             onPointerDown={handleResizePointerDown('corner')}
             onPointerMove={handleResizePointerMove}
@@ -403,48 +414,10 @@ export default function CanvasFragmentComponent({
               borderRadius: 2 / canvasZoom,
               cursor: 'nwse-resize',
             }}
-            title="拖拽调整宽高"
-          />
-
-          {/* 右中手柄：只调宽度 */}
-          <div
-            onPointerDown={handleResizePointerDown('right')}
-            onPointerMove={handleResizePointerMove}
-            onPointerUp={handleResizePointerUp}
-            onPointerCancel={handleResizePointerUp}
-            style={{
-              ...handleBase,
-              right: -handleSize / 2,
-              top: '50%',
-              width: handleSize,
-              height: handleSize,
-              marginTop: -handleSize / 2,
-              borderRadius: 2 / canvasZoom,
-              cursor: 'ew-resize',
-            }}
-            title="拖拽调整宽度"
-          />
-
-          {/* 下中手柄：只调高度 */}
-          <div
-            onPointerDown={handleResizePointerDown('bottom')}
-            onPointerMove={handleResizePointerMove}
-            onPointerUp={handleResizePointerUp}
-            onPointerCancel={handleResizePointerUp}
-            style={{
-              ...handleBase,
-              bottom: -handleSize / 2,
-              left: '50%',
-              width: handleSize,
-              height: handleSize,
-              marginLeft: -handleSize / 2,
-              borderRadius: 2 / canvasZoom,
-              cursor: 'ns-resize',
-            }}
-            title="拖拽调整高度"
+            title="拖拽调整大小"
           />
         </>
       )}
-    </motion.div>
+    </div>
   );
 }

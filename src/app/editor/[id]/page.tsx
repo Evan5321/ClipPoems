@@ -17,8 +17,10 @@ import {
 } from '@dnd-kit/core';
 import Canvas from '@/components/canvas/Canvas';
 import Toolbar from '@/components/canvas/Toolbar';
+import TopNav from '@/components/layout/TopNav';
 import LayerPanel from '@/components/canvas/LayerPanel';
 import FragmentStylePanel from '@/components/settings/FragmentStylePanel';
+import CanvasSettings from '@/components/settings/CanvasSettings';
 import CorpusPanel from '@/components/corpus/CorpusPanel';
 import ResizeHandle from '@/components/shared/ResizeHandle';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -26,6 +28,11 @@ import { useCorpusStore } from '@/store/corpusStore';
 import { useUIStore } from '@/store/uiStore';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { useAutoSave } from '@/hooks/useAutoSave';
+import { useRouter } from 'next/navigation';
+import { saveWork, getWork } from '@/lib/canvas/storage';
+import { exportAsImage, exportAsText, downloadBlob } from '@/lib/canvas/export';
+import { generateId } from '@/lib/utils/id';
+import { FileText, Copy } from 'lucide-react';
 
 /**
  * Custom collision detection: pointerWithin first for accurate drop detection,
@@ -42,6 +49,7 @@ function customCollisionDetection(args: Parameters<typeof pointerWithin>[0]) {
 export default function EditorPage() {
   const params = useParams();
   const canvasId = typeof params.id === 'string' ? params.id : 'new';
+  const router = useRouter();
 
   // Panels state
   const {
@@ -71,6 +79,11 @@ export default function EditorPage() {
   // 响应式计数（图层 / 选中）
   const fragmentCount = useCanvasStore((s) => s.fragments.length);
   const selectedCount = useCanvasStore((s) => s.selectedIds.length);
+  const title = useCanvasStore((s) => s.title);
+  const setTitle = useCanvasStore((s) => s.setTitle);
+  const loadSnapshot = useCanvasStore((s) => s.loadSnapshot);
+  const dirty = useCanvasStore((s) => s.dirty);
+  const markSaved = useCanvasStore((s) => s.markSaved);
 
   // Load corpus data on mount
   const loadAllCorpora = useCorpusStore((s) => s.loadAllCorpora);
@@ -83,7 +96,126 @@ export default function EditorPage() {
   }, [isLoaded, loadAllCorpora]);
 
   // Auto-save
-  const { saveNow } = useAutoSave(canvasId);
+  const { saveNow, savedAt } = useAutoSave(canvasId);
+
+  // 加载作品（mount 时）：优先作品库，其次自动保存槽
+  useEffect(() => {
+    if (canvasId === 'new') {
+      // 新作品：尝试恢复草稿
+      const raw = localStorage.getItem('clip-poems-auto-new');
+      if (raw) {
+        try {
+          const data = JSON.parse(raw);
+          if (data.snapshot && data.snapshot.fragments?.length > 0) {
+            loadSnapshot(data.snapshot);
+            if (data.title) setTitle(data.title);
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return;
+    }
+    const work = getWork(canvasId);
+    if (work) {
+      loadSnapshot(work.snapshot);
+      setTitle(work.title);
+      return;
+    }
+    // 作品库没有，尝试自动保存槽
+    const raw = localStorage.getItem(`clip-poems-auto-${canvasId}`);
+    if (raw) {
+      try {
+        const data = JSON.parse(raw);
+        if (data.snapshot) loadSnapshot(data.snapshot);
+        if (data.title) setTitle(data.title);
+      } catch {
+        // ignore
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasId]);
+
+  // 浏览器关闭/刷新时提示未保存变更
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  // 保存到作品库（同时写入自动保存槽）
+  const handleSave = useCallback(() => {
+    saveNow();
+    const state = useCanvasStore.getState();
+    const snapshot = state.getSnapshot();
+    const workTitle = state.title;
+    if (canvasId === 'new') {
+      const newId = generateId();
+      saveWork({ id: newId, title: workTitle, snapshot, createdAt: Date.now(), updatedAt: Date.now() });
+      router.push(`/editor/${newId}`);
+    } else {
+      saveWork({ id: canvasId, title: workTitle, snapshot, createdAt: Date.now(), updatedAt: Date.now() });
+    }
+    markSaved();
+  }, [canvasId, router, saveNow, markSaved]);
+
+  // 导出 PNG（克隆到离屏容器渲染，避免画布 transform 导致空白偏移）
+  const handleExportImage = useCallback(async () => {
+    const store = useCanvasStore.getState();
+    store.clearSelection();
+    // 等一帧让 DOM 移除选中态手柄
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+    const sourceEl = document.querySelector('[data-canvas-export]') as HTMLElement | null;
+    if (!sourceEl) return;
+
+    // 克隆画布到离屏容器：移除画布整体的居中 transform，保留原始尺寸
+    const offscreen = document.createElement('div');
+    offscreen.style.position = 'fixed';
+    offscreen.style.left = '-99999px';
+    offscreen.style.top = '0';
+    offscreen.style.width = sourceEl.style.width;
+    offscreen.style.height = sourceEl.style.height;
+    offscreen.style.background = '#ffffff';
+
+    const clone = sourceEl.cloneNode(true) as HTMLElement;
+    clone.style.position = 'relative';
+    clone.style.left = '0';
+    clone.style.top = '0';
+    clone.style.transform = 'none';
+    clone.style.boxShadow = 'none';
+    offscreen.appendChild(clone);
+    document.body.appendChild(offscreen);
+
+    try {
+      const blob = await exportAsImage(clone, { format: 'png', scale: 2, includeBackground: true });
+      if (blob) downloadBlob(blob, `${title || '剪贴诗'}.png`);
+    } finally {
+      document.body.removeChild(offscreen);
+    }
+  }, [title]);
+
+  // 导出纯文本
+  const handleExportText = useCallback(() => {
+    const fragments = useCanvasStore.getState().fragments;
+    const text = exportAsText(fragments);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    downloadBlob(blob, `${title || '剪贴诗'}.txt`);
+  }, [title]);
+
+  // 另存为副本
+  const handleSaveAs = useCallback(() => {
+    const state = useCanvasStore.getState();
+    const snapshot = state.getSnapshot();
+    const newId = generateId();
+    saveWork({ id: newId, title: `${state.title} 副本`, snapshot, createdAt: Date.now(), updatedAt: Date.now() });
+    markSaved();
+    router.push(`/editor/${newId}`);
+  }, [router, markSaved]);
 
   // Keyboard shortcuts
   useKeyboard();
@@ -232,16 +364,6 @@ export default function EditorPage() {
     [addFragment, removeFragment, updateFragment, zoom, screenToCanvas],
   );
 
-  // Handle save
-  const handleSave = useCallback(() => {
-    saveNow();
-  }, [saveNow]);
-
-  // Handle export (placeholder)
-  const handleExport = useCallback(() => {
-    console.log('Export triggered');
-  }, []);
-
   return (
     <DndContext
       sensors={sensors}
@@ -251,15 +373,47 @@ export default function EditorPage() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-screen flex-col overflow-hidden">
+        <TopNav />
         {/* Toolbar */}
         <Toolbar
           onSave={handleSave}
-          onExport={handleExport}
+          onExport={handleExportImage}
           onToggleLeftPanel={() => setLeftPanelOpen(!leftPanelOpen)}
           onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
           leftPanelOpen={leftPanelOpen}
           rightPanelOpen={rightPanelOpen}
         />
+
+        {/* 标题栏 */}
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-background px-3">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="h-6 max-w-[240px] flex-1 rounded border-none bg-transparent px-1 text-sm outline-none focus:bg-secondary"
+            placeholder="未命名作品"
+          />
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              onClick={handleExportText}
+              className="flex items-center gap-1 rounded p-1.5 text-muted-foreground hover:bg-secondary"
+              title="导出为纯文本"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleSaveAs}
+              className="flex items-center gap-1 rounded p-1.5 text-muted-foreground hover:bg-secondary"
+              title="另存为副本"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+            {savedAt && (
+              <span className="ml-1 text-[10px] text-muted-foreground">
+                已保存 {new Date(savedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Main editor area */}
         <div className="flex flex-1 overflow-hidden">
@@ -302,6 +456,15 @@ export default function EditorPage() {
                 onResize={setRightPanelWidth}
               />
               <div className="flex-1 overflow-y-auto">
+                {/* 画布设置 */}
+                <div className="border-b">
+                  <h2 className="border-b px-3 py-2 text-xs font-semibold text-muted-foreground">
+                    画布设置
+                  </h2>
+                  <CanvasSettings />
+                </div>
+
+                {/* 图层 */}
                 <div className="flex items-center justify-between border-b px-3 py-2">
                   <h2 className="text-xs font-semibold text-muted-foreground">图层</h2>
                   <span className="text-[10px] text-muted-foreground">

@@ -6,19 +6,32 @@ import poetryRaw from '@/../corpus-data/classical_poetry.json';
 import idiomRaw from '@/../corpus-data/idioms.json';
 import modernRaw from '@/../corpus-data/modern_literature.json';
 import dailyRaw from '@/../corpus-data/daily_corpus.json';
+import recommendRaw from '@/../corpus-data/recommend_corpus.json';
 
 /* ===== 语料分类定义 ===== */
 
 export const CORPUS_CATEGORIES: CorpusCategory[] = [
-  { id: 'classical_poetry', label: '古典诗词', icon: '📜', description: '唐诗、宋词、元曲等经典作品', count: 0 },
-  { id: 'idiom',            label: '成语熟语', icon: '🔤', description: '常用成语和熟语', count: 0 },
+  { id: 'recommend_corpus',  label: '推荐语料', icon: '✨', description: '精选适合拼贴的诗意短句', count: 0 },
+  { id: 'classical_poetry',  label: '古典诗词', icon: '📜', description: '唐诗、宋词、元曲等经典作品', count: 0 },
+  { id: 'idiom',             label: '成语熟语', icon: '🔤', description: '常用成语和熟语', count: 0 },
   { id: 'modern_literature', label: '现代文学', icon: '📖', description: '近现代文学作品选段', count: 0 },
-  { id: 'daily_corpus',     label: '日常语料', icon: '💬', description: '日常用语和口语表达', count: 0 },
+  { id: 'daily_corpus',      label: '日常语料', icon: '💬', description: '日常用语和口语表达', count: 0 },
 ];
 
 /* ===== 语料库元数据 ===== */
 
 export const BUILTIN_CORPORA: Corpus[] = [
+  {
+    id: 'recommend_corpus',
+    name: '推荐语料',
+    type: 'builtin',
+    category: 'recommend_corpus',
+    description: '精选适合拼贴成诗的诗意短句，涵盖自然意象、情感与哲思',
+    language: 'zh',
+    fragmentCount: 0,
+    tags: ['推荐', '诗意', '拼贴', '短句'],
+    version: '1.0.0',
+  },
   {
     id: 'classical_poetry',
     name: '古典诗词',
@@ -161,6 +174,19 @@ function dailyEntryToFragments(entry: CorpusEntry): CorpusFragment[] {
   }];
 }
 
+/** 将推荐语料条目转换为碎片 */
+function recommendEntryToFragments(entry: CorpusEntry): CorpusFragment[] {
+  return [{
+    id: generateId(),
+    text: entry.text || '',
+    source: entry.source || '推荐语料',
+    posTag: inferPosTag(entry.text || '', entry.tags || []),
+    wordCount: entry.wordCount || entry.text?.length || 0,
+    tags: [...(entry.tags || [])],
+    corpusId: 'recommend_corpus',
+  }];
+}
+
 /* ===== 主加载函数 ===== */
 
 export type CorpusDataMap = Record<string, CorpusFragment[]>;
@@ -191,10 +217,11 @@ function loadCategory(
  */
 export async function loadAllCorpusData(): Promise<CorpusDataMap> {
   return {
-    classical_poetry: loadCategory(poetryRaw, 'classical_poetry', (e) => poemEntryToFragments(e)),
-    idiom:            loadCategory(idiomRaw, 'idiom', (e) => idiomEntryToFragment(e)),
+    recommend_corpus:  loadCategory(recommendRaw, 'recommend_corpus', (e) => recommendEntryToFragments(e)),
+    classical_poetry:  loadCategory(poetryRaw, 'classical_poetry', (e) => poemEntryToFragments(e)),
+    idiom:             loadCategory(idiomRaw, 'idiom', (e) => idiomEntryToFragment(e)),
     modern_literature: loadCategory(modernRaw, 'modern_literature', (e) => modernEntryToFragments(e)),
-    daily_corpus:     loadCategory(dailyRaw, 'daily_corpus', (e) => dailyEntryToFragments(e)),
+    daily_corpus:      loadCategory(dailyRaw, 'daily_corpus', (e) => dailyEntryToFragments(e)),
   };
 }
 
@@ -207,6 +234,7 @@ export type CorpusRawMap = Record<string, CorpusEntry[]>;
  */
 export function loadAllCorpusRawData(): CorpusRawMap {
   return {
+    recommend_corpus:  recommendRaw as CorpusEntry[],
     classical_poetry:  poetryRaw as CorpusEntry[],
     idiom:             idiomRaw as CorpusEntry[],
     modern_literature: modernRaw as CorpusEntry[],

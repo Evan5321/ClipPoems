@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { useCorpusStore } from '@/store/corpusStore';
-import { Check, Plus, LayoutGrid, List } from 'lucide-react';
+import { Check, Plus, LayoutGrid, List, Shuffle } from 'lucide-react';
 
 type FragmentLayout = 'grid' | 'list';
 
 export default function FragmentGrid() {
-  const [layout, setLayout] = useState<FragmentLayout>('grid');
+  const [layout, setLayout] = useState<FragmentLayout>('list');
 
   const {
     currentCorpusId,
@@ -17,14 +17,20 @@ export default function FragmentGrid() {
     selectedFragments,
     addFragment,
     removeFragment,
+    randomMode,
+    randomFragments,
+    randomScope,
+    loadRandom,
+    exitRandom,
   } = useCorpusStore();
 
   // Decide which fragments to display
   const displayFragments = useMemo(() => {
     if (searchQuery.trim()) return searchResults;
+    if (randomMode) return randomFragments;
     if (!currentCorpusId) return [];
     return fragmentsByCategory[currentCorpusId] || [];
-  }, [searchQuery, searchResults, currentCorpusId, fragmentsByCategory]);
+  }, [searchQuery, searchResults, randomMode, randomFragments, currentCorpusId, fragmentsByCategory]);
 
   // Selected ID set (fast lookup)
   const selectedIds = useMemo(
@@ -34,30 +40,80 @@ export default function FragmentGrid() {
 
   const isIdiomMode = currentCorpusId === 'idiom';
 
+  // 随机语料工具栏（空状态与非空状态都显示）
+  const randomToolbar = (
+    <div className="mb-3 flex items-center gap-1.5">
+      <button
+        onClick={() => loadRandom(10, 'current')}
+        className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+          randomMode && randomScope === 'current'
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'bg-card hover:border-primary/50 hover:bg-primary/5'
+        }`}
+        title="从当前分类随机抽取 10 个"
+      >
+        <Shuffle className="h-3.5 w-3.5" />
+        随机10个
+      </button>
+      <button
+        onClick={() => loadRandom(10, 'all')}
+        className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+          randomMode && randomScope === 'all'
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'bg-card hover:border-primary/50 hover:bg-primary/5'
+        }`}
+        title="从全部分类随机抽取 10 个"
+      >
+        <Shuffle className="h-3.5 w-3.5" />
+        全部随机
+      </button>
+      {randomMode && (
+        <>
+          <span className="text-[10px] text-muted-foreground">
+            {randomScope === 'all' ? '全部范围' : '当前分类'} · 随机 {randomFragments.length} 个
+          </span>
+          <button
+            onClick={exitRandom}
+            className="ml-auto rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            退出随机
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   // Empty state
   if (!displayFragments || displayFragments.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-lg text-muted-foreground">
-          {searchQuery.trim()
-            ? '没有找到匹配的结果'
-            : '该分类暂无语料数据'}
-        </p>
-        {searchQuery.trim() && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            试试其他关键词
+      <div className="space-y-1">
+        {randomToolbar}
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-lg text-muted-foreground">
+            {randomMode
+              ? '该范围暂无语料数据'
+              : searchQuery.trim()
+                ? '没有找到匹配的结果'
+                : '该分类暂无语料数据'}
           </p>
-        )}
+          {searchQuery.trim() && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              试试其他关键词
+            </p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-1">
+      {randomToolbar}
+
       {/* Top bar: count + layout toggle */}
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          共 {displayFragments.length} 个碎片
+          {randomMode ? `随机 ${displayFragments.length} 个` : `共 ${displayFragments.length} 个碎片`}
         </p>
         <div className="flex items-center gap-0.5 rounded-md border p-0.5">
           <button

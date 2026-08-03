@@ -6,5 +6,22 @@
     "type": "daily_corpus",
     "tags": ["日常", "清晨", "阳光"],
     "wordCount": 5
+  },
+  {
+    "id": "daily-002",
+    "text": "夏天里最遗憾的事",
+    "source": "日常语料库",
+    "type": "daily_corpus",
+    "tags": ["日常", "夏天", "遗憾"],
+    "wordCount": 5
+  },
+  {
+    "id": "daily-003",
+    "text": "不知道如何开口",
+    "source": "日常语料库",
+    "type": "daily_corpus",
+    "tags": ["日常", "开口"],
+    "wordCount": 5
   }
+
 ]

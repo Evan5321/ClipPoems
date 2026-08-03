@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { CanvasFragment, CanvasBackground, CanvasGrid, Position } from '@/types/canvas';
+import type { CanvasFragment, CanvasBackground, CanvasGrid, Position, GlobalTextStyle, CanvasSnapshot } from '@/types/canvas';
 import { generateId } from '@/lib/utils/id';
 import { generateTornEdgePercent } from '@/lib/canvas/clipPaths';
 
@@ -34,6 +34,8 @@ function makeClipPath(text: string, fontSize: number, seed: string): string {
 interface CanvasState {
   fragments: CanvasFragment[];
   selectedIds: string[];
+  /** 画布尺寸（像素） */
+  canvasSize: { width: number; height: number };
   background: CanvasBackground;
   grid: CanvasGrid;
   /** 画布缩放级别 */
@@ -42,6 +44,14 @@ interface CanvasState {
   panOffset: { x: number; y: number };
   /** 全局自增 zIndex 计数器 */
   _zCounter: number;
+  /** 适配屏幕信号（递增触发 Canvas 执行 fitToScreen） */
+  fitSignal: number;
+  /** 全局文字默认样式（新建碎片继承） */
+  globalTextStyle: GlobalTextStyle;
+  /** 作品标题 */
+  title: string;
+  /** 是否有未保存的变更 */
+  dirty: boolean;
 
   addFragment: (fragment: Partial<CanvasFragment> & { text: string }) => string;
   removeFragment: (id: string) => void;
@@ -57,8 +67,25 @@ interface CanvasState {
   clearSelection: () => void;
   setZoom: (zoom: number) => void;
   setPanOffset: (offset: { x: number; y: number }) => void;
+  setCanvasSize: (size: { width: number; height: number }) => void;
   setBackground: (background: CanvasBackground) => void;
   setGrid: (grid: CanvasGrid) => void;
+  /** 请求画布适配屏幕（递增 fitSignal） */
+  requestFit: () => void;
+  /** 设置全局文字默认样式 */
+  setGlobalTextStyle: (style: GlobalTextStyle) => void;
+  /** 将全局样式应用到所有现有碎片 */
+  applyStyleToAll: () => void;
+  /** 设置作品标题 */
+  setTitle: (title: string) => void;
+  /** 从快照恢复画布 */
+  loadSnapshot: (snapshot: CanvasSnapshot) => void;
+  /** 导出当前画布快照 */
+  getSnapshot: () => CanvasSnapshot;
+  /** 标记为已保存（清除 dirty） */
+  markSaved: () => void;
+  /** 重置画布到初始空状态（清空所有内容） */
+  resetCanvas: () => void;
   /** 将碎片移到最上层 */
   bringToFront: (id: string) => void;
   /** 将碎片移到最下层 */
@@ -74,15 +101,28 @@ interface CanvasState {
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   fragments: [],
   selectedIds: [],
-  background: { type: 'solid', value: '#ffffff', opacity: 1 },
+  canvasSize: { width: 800, height: 600 },
+  background: { type: 'solid', value: '#f5f0e8', opacity: 1 },
   grid: { enabled: false, spacing: 20 },
   zoom: 1,
   panOffset: { x: 0, y: 0 },
   _zCounter: 1,
+  fitSignal: 0,
+  globalTextStyle: {
+    fontFamily: 'serif',
+    fontSize: 24,
+    color: '#333333',
+    letterSpacing: 2,
+    lineHeight: 1.6,
+    direction: 'horizontal',
+  },
+  title: '未命名作品',
+  dirty: false,
 
   addFragment: (partial) => {
     const id = partial.id || generateId();
-    const fontSize = partial.style?.fontSize || 24;
+    const g = get().globalTextStyle;
+    const fontSize = partial.style?.fontSize || g.fontSize || 24;
     const { width, height } = estimateFragmentSize(partial.text, fontSize);
     const z = get()._zCounter;
 
@@ -90,17 +130,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       id,
       text: partial.text,
       position: partial.position || { x: 40, y: 40 },
-      rotation: partial.rotation || 0,
+      rotation: partial.rotation !== undefined
+        ? partial.rotation
+        : (5 + Math.random() * 5) * (Math.random() < 0.5 ? -1 : 1),
       scale: partial.scale || 1,
       zIndex: z,
       style: {
-        fontFamily: partial.style?.fontFamily || 'serif',
+        fontFamily: partial.style?.fontFamily || g.fontFamily || 'serif',
         fontSize,
-        color: partial.style?.color || '#333333',
-        letterSpacing: partial.style?.letterSpacing ?? 2,
-        lineHeight: partial.style?.lineHeight ?? 1.6,
+        color: partial.style?.color || g.color || '#333333',
+        letterSpacing: partial.style?.letterSpacing ?? g.letterSpacing ?? 2,
+        lineHeight: partial.style?.lineHeight ?? g.lineHeight ?? 1.6,
         opacity: partial.style?.opacity ?? 1,
-        direction: partial.style?.direction || 'horizontal',
+        direction: partial.style?.direction || g.direction || 'horizontal',
       },
       locked: partial.locked || false,
       corpusFragmentId: partial.corpusFragmentId,
@@ -113,6 +155,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set((state) => ({
       fragments: [...state.fragments, fragment],
       _zCounter: state._zCounter + 1,
+      dirty: true,
     }));
 
     return id;
@@ -122,6 +165,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set((state) => ({
       fragments: state.fragments.filter((f) => f.id !== id),
       selectedIds: state.selectedIds.filter((sid) => sid !== id),
+      dirty: true,
     })),
 
   updateFragment: (id, updates) =>
@@ -129,6 +173,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       fragments: state.fragments.map((f) =>
         f.id === id ? { ...f, ...updates } : f,
       ),
+      dirty: true,
     })),
 
   updateFragmentText: (id, text) =>
@@ -149,6 +194,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           clipPath: makeClipPath(text, fontSize, id),
         };
       }),
+      dirty: true,
     })),
 
   updateFragmentStyle: (id, style) =>
@@ -173,6 +219,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
         return { ...f, style: nextStyle };
       }),
+      dirty: true,
     })),
 
   resizeFragment: (id, width, height) =>
@@ -187,6 +234,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             }
           : f,
       ),
+      dirty: true,
     })),
 
   selectFragment: (id) =>
@@ -203,9 +251,91 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   clearSelection: () => set({ selectedIds: [] }),
 
-  setBackground: (background) => set({ background }),
+  setBackground: (background) => set({ background, dirty: true }),
 
-  setGrid: (grid) => set({ grid }),
+  setGrid: (grid) => set({ grid, dirty: true }),
+
+  setCanvasSize: (size) =>
+    set({
+      canvasSize: {
+        width: Math.max(100, Math.round(size.width)),
+        height: Math.max(100, Math.round(size.height)),
+      },
+      dirty: true,
+    }),
+
+  requestFit: () => set((s) => ({ fitSignal: s.fitSignal + 1 })),
+
+  setGlobalTextStyle: (style) => set({ globalTextStyle: { ...get().globalTextStyle, ...style }, dirty: true }),
+
+  applyStyleToAll: () => {
+    const g = get().globalTextStyle;
+    set((state) => ({
+      fragments: state.fragments.map((f) => ({
+        ...f,
+        style: {
+          ...f.style,
+          fontFamily: g.fontFamily || f.style.fontFamily,
+          fontSize: g.fontSize || f.style.fontSize,
+          color: g.color || f.style.color,
+          letterSpacing: g.letterSpacing ?? f.style.letterSpacing,
+          lineHeight: g.lineHeight ?? f.style.lineHeight,
+          direction: g.direction || f.style.direction,
+        },
+      })),
+      dirty: true,
+    }));
+  },
+
+  setTitle: (title) => set({ title, dirty: true }),
+
+  loadSnapshot: (snapshot) =>
+    set({
+      fragments: snapshot.fragments,
+      background: snapshot.background,
+      grid: snapshot.grid,
+      canvasSize: snapshot.canvasSize,
+      globalTextStyle: snapshot.globalTextStyle,
+      selectedIds: [],
+      _zCounter: snapshot.fragments.reduce((max, f) => Math.max(max, f.zIndex), 0) + 1,
+      dirty: false,
+    }),
+
+  markSaved: () => set({ dirty: false }),
+
+  resetCanvas: () =>
+    set({
+      fragments: [],
+      selectedIds: [],
+      canvasSize: { width: 800, height: 600 },
+      background: { type: 'solid', value: '#f5f0e8', opacity: 1 },
+      grid: { enabled: false, spacing: 20 },
+      zoom: 1,
+      panOffset: { x: 0, y: 0 },
+      _zCounter: 1,
+      fitSignal: 0,
+      globalTextStyle: {
+        fontFamily: 'serif',
+        fontSize: 24,
+        color: '#333333',
+        letterSpacing: 2,
+        lineHeight: 1.6,
+        direction: 'horizontal',
+      },
+      title: '未命名作品',
+      dirty: false,
+    }),
+
+  getSnapshot: () => {
+    const s = get();
+    return {
+      fragments: s.fragments,
+      background: s.background,
+      grid: s.grid,
+      canvasSize: s.canvasSize,
+      globalTextStyle: s.globalTextStyle,
+    };
+  },
 
   setZoom: (zoom) => set({ zoom }),
 
@@ -218,6 +348,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       fragments: state.fragments.map((f) =>
         f.id === id ? { ...f, zIndex: maxZ + 1 } : f,
       ),
+      dirty: true,
     }));
   },
 
@@ -229,6 +360,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (f.id === id) return { ...f, zIndex: minZ - 1 };
         return f;
       }),
+      dirty: true,
     }));
   },
 
@@ -238,6 +370,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         f.id === id ? { ...f, zIndex: f.zIndex + 1 } : f,
       ),
       _zCounter: state._zCounter + 1,
+      dirty: true,
     })),
 
   sendBackward: (id) =>
@@ -245,6 +378,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       fragments: state.fragments.map((f) =>
         f.id === id ? { ...f, zIndex: Math.max(0, f.zIndex - 1) } : f,
       ),
+      dirty: true,
     })),
 
   addFragmentsFromCorpus: (corpusFragments) => {
@@ -291,6 +425,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set((state) => ({
       fragments: [...state.fragments, ...newFragments],
       _zCounter: z,
+      dirty: true,
     }));
   },
 }));

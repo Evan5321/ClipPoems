@@ -54,6 +54,14 @@ export function useKeyboard(shortcuts?: KeyboardShortcut[]) {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // 焦点在输入框/文本域/可编辑元素时，除 Escape 外不拦截（允许正常编辑）
+      const target = e.target as HTMLElement;
+      const isEditing =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable;
+      if (isEditing && e.key !== 'Escape') return;
+
       for (const sc of allShortcuts) {
         const ctrlMatch = sc.ctrl ? e.ctrlKey || e.metaKey : true;
         const shiftMatch = sc.shift ? e.shiftKey : true;

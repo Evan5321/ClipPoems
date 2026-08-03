@@ -1,8 +1,10 @@
 import CorpusPanel from '@/components/corpus/CorpusPanel';
+import TopNav from '@/components/layout/TopNav';
 
 export default function CorpusPage() {
   return (
     <div className="flex min-h-screen flex-col">
+      <TopNav />
       {/* 页面头部 */}
       <header className="border-b">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">

@@ -1,13 +1,27 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCorpusStore } from '@/store/corpusStore';
 import { CORPUS_CATEGORIES } from '@/lib/corpus/loader';
+import TopNav from '@/components/layout/TopNav';
 
 export default function HomePage() {
   const { isLoaded, isLoading, fragmentsByCategory } = useCorpusStore();
+  const router = useRouter();
+
+  // 新建作品：清空草稿槽后跳转，确保从空白开始
+  const startNewWork = () => {
+    try {
+      localStorage.removeItem('clip-poems-auto-new');
+    } catch {
+      // ignore
+    }
+    router.push('/editor/new');
+  };
 
   return (
     <main className="min-h-screen">
+      <TopNav />
       {/* Hero */}
       <section className="flex flex-col items-center justify-center px-4 pt-24 pb-16">
         <h1 className="text-5xl font-bold tracking-tight">ClipPoems</h1>
@@ -65,15 +79,15 @@ export default function HomePage() {
               浏览所有可用语料
             </div>
           </a>
-          <a
-            href="/editor/new"
-            className="rounded-lg border bg-card px-6 py-4 text-card-foreground shadow-sm transition hover:shadow-md"
+          <button
+            onClick={startNewWork}
+            className="rounded-lg border bg-card px-6 py-4 text-left text-card-foreground shadow-sm transition hover:shadow-md"
           >
             <div className="font-medium">新建作品</div>
             <div className="mt-1 text-sm text-muted-foreground">
               开始拼贴创作
             </div>
-          </a>
+          </button>
           <a
             href="/gallery"
             className="rounded-lg border bg-card px-6 py-4 text-card-foreground shadow-sm transition hover:shadow-md"

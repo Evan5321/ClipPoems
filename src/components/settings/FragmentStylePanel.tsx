@@ -22,6 +22,13 @@ const PRESET_COLORS = [
   '#92400e', '#000000', '#6b7280', '#dc2626',
 ];
 
+/** 预设背景色（纸张 / 做旧 / 深色） */
+const PRESET_BG_COLORS = [
+  '#ffffff', '#f5f1e8', '#ede4d3', '#f0e6d2',
+  '#e8e8e8', '#fce4ec', '#e3f2fd', '#e8f5e9',
+  '#f3e5f5', '#fff3e0', '#262626', '#3d2817',
+];
+
 /** 通用 slider 行 */
 function SliderRow({
   label,
@@ -192,6 +199,53 @@ export default function FragmentStylePanel() {
             className="h-6 flex-1 rounded-md border bg-background px-2 text-[11px] font-mono outline-none focus:ring-1 focus:ring-primary"
             placeholder="#333333"
           />
+        </div>
+      </div>
+
+      {/* 背景颜色 */}
+      <div className="space-y-1.5">
+        <span className="text-[11px] text-muted-foreground">背景颜色</span>
+        <div className="grid grid-cols-6 gap-1">
+          {PRESET_BG_COLORS.map((c) => {
+            const current = (style.backgroundColor || '#ffffff').toLowerCase();
+            return (
+              <button
+                key={c}
+                onClick={() => apply({ backgroundColor: c })}
+                className={`h-6 w-full rounded-md border transition-transform hover:scale-110 ${
+                  current === c.toLowerCase()
+                    ? 'ring-2 ring-primary ring-offset-1'
+                    : 'border-border'
+                }`}
+                style={{ background: c }}
+                title={c}
+                aria-label={`选择背景色 ${c}`}
+              />
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 pt-0.5">
+          <input
+            type="color"
+            value={style.backgroundColor || '#ffffff'}
+            onChange={(e) => apply({ backgroundColor: e.target.value })}
+            className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
+            aria-label="自定义背景色"
+          />
+          <input
+            type="text"
+            value={style.backgroundColor || '#ffffff'}
+            onChange={(e) => apply({ backgroundColor: e.target.value })}
+            className="h-6 flex-1 rounded-md border bg-background px-2 text-[11px] font-mono outline-none focus:ring-1 focus:ring-primary"
+            placeholder="#ffffff"
+          />
+          <button
+            onClick={() => apply({ backgroundColor: '#ffffff' })}
+            className="h-6 rounded-md border border-border px-2 text-[10px] text-muted-foreground hover:bg-secondary"
+            title="重置为白色"
+          >
+            重置
+          </button>
         </div>
       </div>
 
