@@ -36,25 +36,25 @@ ClipPoems 是一个拼贴诗歌创作工具。内置古典诗词、成语、现�
 
 ### 快捷键
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Delete` / `Backspace` | 删除选中碎片 |
-| `Ctrl+A` | 全选碎片 |
-| `Esc` | 取消选择 / 退出编辑 |
-| `Ctrl+滚轮` | 缩放画布 |
+| 快捷键                     | 功能                |
+| -------------------------- | ------------------- |
+| `Delete` / `Backspace` | 删除选中碎片        |
+| `Ctrl+A`                 | 全选碎片            |
+| `Esc`                    | 取消选择 / 退出编辑 |
+| `Ctrl+滚轮`              | 缩放画布            |
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 前端框架 | Next.js 14 (App Router) + React 18 + TypeScript |
-| 样式 | Tailwind CSS + shadcn/ui + framer-motion |
-| 状态管理 | Zustand |
-| 拖拽 | @dnd-kit |
-| 画布导出 | html2canvas |
-| 中文分词 | Python FastAPI + jieba（可选，前端有离线降级） |
-| 数据持久化 | localStorage（作品库、草稿、碎片组） |
-| 桌面端 | Tauri (Rust)（骨架已搭建） |
+| 层级       | 技术                                            |
+| ---------- | ----------------------------------------------- |
+| 前端框架   | Next.js 14 (App Router) + React 18 + TypeScript |
+| 样式       | Tailwind CSS + shadcn/ui + framer-motion        |
+| 状态管理   | Zustand                                         |
+| 拖拽       | @dnd-kit                                        |
+| 画布导出   | html2canvas                                     |
+| 中文分词   | Python FastAPI + jieba（可选，前端有离线降级）  |
+| 数据持久化 | localStorage（作品库、草稿、碎片组）            |
+| 桌面端     | Tauri (Rust)（骨架已搭建）                      |
 
 ## 项目结构
 
@@ -112,28 +112,28 @@ pnpm dev:all
 
 ### 可用脚本
 
-| 命令 | 说明 |
-|------|------|
-| `pnpm dev` | 启动开发服务器 |
-| `pnpm dev:all` | 同时启动前端 + Python 分词服务 |
-| `pnpm build` | 构建生产版本 |
-| `pnpm start` | 运行生产版本 |
-| `pnpm lint` | ESLint 代码检查 |
-| `pnpm format` | Prettier 格式化 |
-| `pnpm corpus` | 单独启动 Python 分词服务 |
-| `pnpm db:push` | 初始化 SQLite 数据库 |
-| `pnpm db:studio` | Prisma Studio 可视化数据库 |
+| 命令               | 说明                           |
+| ------------------ | ------------------------------ |
+| `pnpm dev`       | 启动开发服务器                 |
+| `pnpm dev:all`   | 同时启动前端 + Python 分词服务 |
+| `pnpm build`     | 构建生产版本                   |
+| `pnpm start`     | 运行生产版本                   |
+| `pnpm lint`      | ESLint 代码检查                |
+| `pnpm format`    | Prettier 格式化                |
+| `pnpm corpus`    | 单独启动 Python 分词服务       |
+| `pnpm db:push`   | 初始化 SQLite 数据库           |
+| `pnpm db:studio` | Prisma Studio 可视化数据库     |
 
 ## 部署
 
 项目数据全部存储在浏览器 localStorage 中，无需后端数据库即可运行核心功能。
 
-| 平台 | 说明 |
-|------|------|
-| **Vercel** | 推荐方案，零配置部署，Next.js 官方平台 |
-| **Netlify** | 内置 Next.js 插件，免费版可用 |
-| **Cloudflare Pages** | 免费 CDN，通过 `@cloudflare/next-on-pages` 适配 |
-| **GitHub Pages** | 需 `output: 'export'` 静态导出，不支持 SSR |
+| 平台                       | 说明                                             |
+| -------------------------- | ------------------------------------------------ |
+| **Vercel**           | 推荐方案，零配置部署，Next.js 官方平台           |
+| **Netlify**          | 内置 Next.js 插件，免费版可用                    |
+| **Cloudflare Pages** | 免费 CDN，通过`@cloudflare/next-on-pages` 适配 |
+| **GitHub Pages**     | 需`output: 'export'` 静态导出，不支持 SSR      |
 
 如需完整的分词功能，可将 Python 分词服务单独部署到 Render / Railway / Fly.io 的免费容器，前端通过环境变量指向该 API 地址。
 
