@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useCorpusStore } from '@/store/corpusStore';
-import { Check, Plus, LayoutGrid, List, Shuffle } from 'lucide-react';
+import { Check, Plus, LayoutGrid, List, Shuffle, Star } from 'lucide-react';
+import ThemePacks from './ThemePacks';
 
 type FragmentLayout = 'grid' | 'list';
 
@@ -15,16 +16,18 @@ export default function FragmentGrid() {
     searchResults,
     searchQuery,
     selectedFragments,
+    favorites,
     addFragment,
     removeFragment,
+    toggleFavorite,
     randomMode,
     randomFragments,
     randomScope,
     loadRandom,
     exitRandom,
+    isLoading,
   } = useCorpusStore();
 
-  // Decide which fragments to display
   const displayFragments = useMemo(() => {
     if (searchQuery.trim()) return searchResults;
     if (randomMode) return randomFragments;
@@ -32,15 +35,13 @@ export default function FragmentGrid() {
     return fragmentsByCategory[currentCorpusId] || [];
   }, [searchQuery, searchResults, randomMode, randomFragments, currentCorpusId, fragmentsByCategory]);
 
-  // Selected ID set (fast lookup)
-  const selectedIds = useMemo(
-    () => new Set(selectedFragments.map((f) => f.id)),
-    [selectedFragments],
-  );
+  const selectedIds = useMemo(() => new Set(selectedFragments.map((f) => f.id)), [selectedFragments]);
+  const favoriteIds = useMemo(() => new Set(favorites.map((f) => f.id)), [favorites]);
 
   const isIdiomMode = currentCorpusId === 'idiom';
+  const isFavorites = currentCorpusId === 'favorites';
+  const isCustom = currentCorpusId === 'custom_corpus';
 
-  // 随机语料工具栏（空状态与非空状态都显示）
   const randomToolbar = (
     <div className="mb-3 flex items-center gap-1.5">
       <button
@@ -83,7 +84,17 @@ export default function FragmentGrid() {
     </div>
   );
 
-  // Empty state
+  if (isLoading) {
+    return (
+      <div className="space-y-1">
+        {randomToolbar}
+        <div className="flex items-center justify-center py-16">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      </div>
+    );
+  }
+
   if (!displayFragments || displayFragments.length === 0) {
     return (
       <div className="space-y-1">
@@ -94,13 +105,21 @@ export default function FragmentGrid() {
               ? '该范围暂无语料数据'
               : searchQuery.trim()
                 ? '没有找到匹配的结果'
-                : '该分类暂无语料数据'}
+                : isFavorites
+                  ? '还没有收藏任何碎片'
+                  : isCustom
+                    ? '还没有导入自定义语料'
+                    : '该分类暂无语料数据'}
           </p>
-          {searchQuery.trim() && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              试试其他关键词
-            </p>
-          )}
+          <p className="mt-1 text-sm text-muted-foreground">
+            {isFavorites
+              ? '点击任意碎片右上角的 ⭐ 即可收藏'
+              : isCustom
+                ? '点击上方「导入」按钮，支持 TXT / Markdown / CSV'
+                : searchQuery.trim()
+                  ? '试试其他关键词'
+                  : ''}
+          </p>
         </div>
       </div>
     );
@@ -109,8 +128,8 @@ export default function FragmentGrid() {
   return (
     <div className="space-y-1">
       {randomToolbar}
+      <ThemePacks />
 
-      {/* Top bar: count + layout toggle */}
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {randomMode ? `随机 ${displayFragments.length} 个` : `共 ${displayFragments.length} 个碎片`}
@@ -119,9 +138,7 @@ export default function FragmentGrid() {
           <button
             onClick={() => setLayout('grid')}
             className={`rounded px-1.5 py-1 text-xs transition-colors ${
-              layout === 'grid'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+              layout === 'grid' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
             title="网格视图"
           >
@@ -130,9 +147,7 @@ export default function FragmentGrid() {
           <button
             onClick={() => setLayout('list')}
             className={`rounded px-1.5 py-1 text-xs transition-colors ${
-              layout === 'list'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+              layout === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
             title="列表视图"
           >
@@ -141,46 +156,48 @@ export default function FragmentGrid() {
         </div>
       </div>
 
-      {/* Fragments */}
       {layout === 'grid' ? (
-        /* ---- Grid layout ---- */
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {displayFragments.map((fragment) => {
             const isSelected = selectedIds.has(fragment.id);
-
             return (
-              <button
+              <div
                 key={fragment.id}
-                onClick={() => {
-                  if (isSelected) {
-                    removeFragment(fragment.id);
-                  } else {
-                    addFragment(fragment);
-                  }
+                role="button"
+                tabIndex={0}
+                onClick={() => (isSelected ? removeFragment(fragment.id) : addFragment(fragment))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') isSelected ? removeFragment(fragment.id) : addFragment(fragment);
                 }}
-                className={`group relative rounded-lg border p-3 text-left transition-all hover:shadow-md ${
-                  isSelected
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                    : 'border-border bg-card hover:border-primary/50'
+                className={`group relative cursor-pointer rounded-lg border p-3 text-left transition-all hover:shadow-md ${
+                  isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card hover:border-primary/50'
                 }`}
               >
-                {/* Selected badge */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(fragment);
+                  }}
+                  className={`absolute right-2 top-2 rounded p-0.5 transition-colors ${
+                    favoriteIds.has(fragment.id)
+                      ? 'text-amber-500'
+                      : 'text-muted-foreground/40 opacity-0 hover:text-amber-500 group-hover:opacity-100'
+                  }`}
+                  title={favoriteIds.has(fragment.id) ? '取消收藏' : '收藏'}
+                >
+                  <Star className={`h-3.5 w-3.5 ${favoriteIds.has(fragment.id) ? 'fill-current' : ''}`} />
+                </button>
+
                 {isSelected && (
-                  <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <div className="absolute right-8 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                     <Check className="h-3 w-3" />
                   </div>
                 )}
 
-                {/* Fragment text */}
-                <p
-                  className={`break-all text-sm leading-relaxed ${
-                    isSelected ? 'text-primary' : 'text-card-foreground'
-                  }`}
-                >
+                <p className={`break-all pr-6 text-sm leading-relaxed ${isSelected ? 'text-primary' : 'text-card-foreground'}`}>
                   {fragment.text}
                 </p>
 
-                {/* Meta info */}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {fragment.author && (
                     <span className="rounded-sm bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -200,7 +217,6 @@ export default function FragmentGrid() {
                   )}
                 </div>
 
-                {/* Add button (hover) */}
                 {!isSelected && (
                   <div className="absolute bottom-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -208,47 +224,32 @@ export default function FragmentGrid() {
                     </div>
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
       ) : (
-        /* ---- List layout ---- */
         <div className="space-y-1">
-          {displayFragments.map((fragment) => {
+          {displayFragments.map((fragment, index) => {
             const isSelected = selectedIds.has(fragment.id);
-
             return (
-              <button
+              <div
                 key={fragment.id}
-                onClick={() => {
-                  if (isSelected) {
-                    removeFragment(fragment.id);
-                  } else {
-                    addFragment(fragment);
-                  }
+                role="button"
+                tabIndex={0}
+                onClick={() => (isSelected ? removeFragment(fragment.id) : addFragment(fragment))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') isSelected ? removeFragment(fragment.id) : addFragment(fragment);
                 }}
-                className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all hover:shadow-sm ${
-                  isSelected
-                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                    : 'border-border bg-card hover:border-primary/50'
+                className={`group flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all hover:shadow-sm ${
+                  isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-card hover:border-primary/50'
                 }`}
               >
-                {/* Index number */}
-                <span className="w-6 shrink-0 text-center text-xs tabular-nums text-muted-foreground/50">
-                  {displayFragments.indexOf(fragment) + 1}
-                </span>
-
-                {/* Fragment text */}
-                <span
-                  className={`flex-1 truncate text-sm ${
-                    isSelected ? 'font-medium text-primary' : 'text-card-foreground'
-                  }`}
-                >
+                <span className="w-6 shrink-0 text-center text-xs tabular-nums text-muted-foreground/50">{index + 1}</span>
+                <span className={`flex-1 truncate text-sm ${isSelected ? 'font-medium text-primary' : 'text-card-foreground'}`}>
                   {fragment.text}
                 </span>
 
-                {/* Meta info */}
                 <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
                   {fragment.author && (
                     <span className="rounded-sm bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -267,17 +268,31 @@ export default function FragmentGrid() {
                   )}
                 </div>
 
-                {/* Selected badge / add button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(fragment);
+                  }}
+                  className={`shrink-0 rounded p-0.5 transition-colors ${
+                    favoriteIds.has(fragment.id)
+                      ? 'text-amber-500'
+                      : 'text-muted-foreground/40 opacity-0 hover:text-amber-500 group-hover:opacity-100'
+                  }`}
+                  title={favoriteIds.has(fragment.id) ? '取消收藏' : '收藏'}
+                >
+                  <Star className={`h-3.5 w-3.5 ${favoriteIds.has(fragment.id) ? 'fill-current' : ''}`} />
+                </button>
+
                 {isSelected ? (
                   <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                     <Check className="h-3 w-3" />
                   </div>
                 ) : (
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/0 text-primary opacity-0 transition-all group-hover:bg-primary/10 group-hover:opacity-100">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-primary opacity-0 transition-all group-hover:bg-primary/10 group-hover:opacity-100">
                     <Plus className="h-3.5 w-3.5" />
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -286,7 +301,6 @@ export default function FragmentGrid() {
   );
 }
 
-/** POS tag Chinese label */
 function posTagLabel(tag: string): string {
   const map: Record<string, string> = {
     noun: '名词',

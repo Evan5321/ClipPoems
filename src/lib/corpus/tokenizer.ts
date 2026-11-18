@@ -1,7 +1,7 @@
 import type { TokenizeResult } from '@/types/corpus';
 
 const CORPUS_SERVICE_URL =
-  process.env.NEXT_PUBLIC_CORPUS_SERVICE_URL || 'http://localhost:8001';
+  process.env.NEXT_PUBLIC_CORPUS_SERVICE_URL || 'http://localhost:8000';
 
 /**
  * 调用 Python 分词服务进行中文分词

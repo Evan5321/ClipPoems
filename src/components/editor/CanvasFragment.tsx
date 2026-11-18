@@ -1,5 +1,4 @@
 'use client';
 
-export function CanvasFragment() {
-  return <div>CanvasFragment Placeholder</div>;
-}
+// 兼容旧路径
+export { default } from '@/components/canvas/CanvasFragment';

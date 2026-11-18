@@ -3,6 +3,12 @@ import { generateId } from '@/lib/utils/id';
 
 const WORKS_KEY = 'clip-poems-works';
 
+/** 历史版本 */
+export interface WorkVersion {
+  savedAt: number;
+  snapshot: CanvasSnapshot;
+}
+
 /** 作品记录 */
 export interface Work {
   id: string;
@@ -12,7 +18,11 @@ export interface Work {
   thumbnail?: string;
   createdAt: number;
   updatedAt: number;
+  /** 历史版本（最多 20 个） */
+  versions?: WorkVersion[];
 }
+
+const MAX_VERSIONS = 20;
 
 /** 读取所有作品（按更新时间降序） */
 export function listWorks(): Work[] {
@@ -108,6 +118,30 @@ export function duplicateWork(id: string, newTitle?: string): Work | null {
     updatedAt: Date.now(),
   };
   return saveWork(work);
+}
+
+/**
+ * 手动保存时记录历史版本
+ */
+export function saveVersion(id: string, version: WorkVersion): void {
+  const works = listWorks();
+  const idx = works.findIndex((w) => w.id === id);
+  if (idx < 0) return;
+  const v = (works[idx].versions || []).slice();
+  v.push(version);
+  while (v.length > MAX_VERSIONS) v.shift();
+  works[idx] = { ...works[idx], versions: v };
+  try {
+    localStorage.setItem(WORKS_KEY, JSON.stringify(works));
+  } catch {
+    // ignore
+  }
+}
+
+/** 读取作品历史版本 */
+export function listVersions(id: string): WorkVersion[] {
+  const work = getWork(id);
+  return work?.versions || [];
 }
 
 function emptySnapshot(): CanvasSnapshot {

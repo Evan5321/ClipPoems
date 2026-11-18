@@ -308,7 +308,7 @@ export default function WordSelector() {
 
         {/* 碎片列表（多行排列，可拖拽，限制高度约为视口三分之一，超出部分可竖向滚动） */}
         {selectedFragments.length > 0 && (
-          <div className="flex max-h-[33vh] flex-wrap gap-2 overflow-y-auto pb-2">
+          <div className="flex max-h-[12vh] flex-wrap gap-2 overflow-y-auto pb-2">
             {selectedFragments.map((fragment) => (
               <DraggableWordItem key={fragment.id} fragment={fragment} />
             ))}

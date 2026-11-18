@@ -1,74 +1,94 @@
 import { create } from 'zustand';
-import type { CorpusFragment, Corpus, CorpusEntry } from '@/types/corpus';
+import type { CorpusFragment, Corpus, CorpusCategory, CorpusEntry } from '@/types/corpus';
 import {
   loadAllCorpusData,
   searchFragments,
   loadAllCorpusRawData,
   BUILTIN_CORPORA,
+  ALL_CATEGORIES,
   type CorpusDataMap,
   type CorpusRawMap,
 } from '@/lib/corpus/loader';
 import { loadSelectedDraft, saveSelectedDraft } from '@/lib/corpus/fragmentGroups';
+import {
+  listCustomPacks,
+  createCustomPack,
+  renameCustomPack,
+  deleteCustomPack,
+  type CustomCorpusPack,
+} from '@/lib/corpus/customCorpus';
+import { loadFavorites, saveFavorites } from '@/lib/corpus/favorites';
+
+/** 把自定义语料包 + 收藏合并进碎片索引 */
+function buildUserData(
+  base: CorpusDataMap,
+  packs: CustomCorpusPack[],
+  favorites: CorpusFragment[],
+): CorpusDataMap {
+  const custom = packs.flatMap((p) =>
+    p.fragments.map((f) => ({ ...f, corpusId: 'custom_corpus', tags: [...f.tags, p.name] })),
+  );
+  return { ...base, custom_corpus: custom, favorites };
+}
+
+function categoriesWithCounts(data: CorpusDataMap): CorpusCategory[] {
+  return ALL_CATEGORIES.map((c) => ({ ...c, count: (data[c.id] || []).length }));
+}
 
 interface CorpusState {
-  /** 语料库元数据列表 */
   corpora: Corpus[];
-  /** 所有已加载的碎片（按分类ID索引） */
+  categories: CorpusCategory[];
   fragmentsByCategory: CorpusDataMap;
-  /** 所有原始语料条目（按分类ID索引，供文章划词使用） */
   rawEntriesByCategory: CorpusRawMap;
-  /** 用户已经选中的碎片（待拖入画布） */
+  customPacks: CustomCorpusPack[];
+  favorites: CorpusFragment[];
   selectedFragments: CorpusFragment[];
-  /** 搜索关键词 */
   searchQuery: string;
-  /** 当前选中的语料库分类 */
   currentCorpusId: string | null;
-  /** 搜索结果 */
   searchResults: CorpusFragment[];
-  /** 随机模式是否开启 */
   randomMode: boolean;
-  /** 随机抽取的碎片列表 */
   randomFragments: CorpusFragment[];
-  /** 随机范围 */
   randomScope: 'current' | 'all';
-  /** 加载状态 */
   isLoading: boolean;
-  /** 是否已初始化 */
   isLoaded: boolean;
+  error: string | null;
 
-  /** 初始化加载所有语料 */
   loadAllCorpora: () => Promise<void>;
-  /** 设置语料库列表 */
   setCorpora: (corpora: Corpus[]) => void;
-  /** 切换当前语料库 */
   setCurrentCorpus: (id: string) => void;
-  /** 设置搜索关键词并执行搜索 */
   setSearchQuery: (query: string) => void;
-  /** 添加碎片到选中列表 */
   addFragment: (fragment: CorpusFragment) => void;
-  /** 从选中列表移除碎片 */
+  addFragments: (fragments: CorpusFragment[]) => void;
   removeFragment: (id: string) => void;
-  /** 清空选中列表 */
   clearSelection: () => void;
-  /** 加载碎片组到选中列表（替换当前选中） */
   loadFragmentGroup: (fragments: CorpusFragment[]) => void;
-  /** 随机抽取碎片（scope: 'current' 当前分类 | 'all' 全部分类） */
+  /** 水合后从 localStorage 恢复自动保存的已选碎片（仅客户端挂载后调用） */
+  restoreSelectedDraft: () => void;
   loadRandom: (count: number, scope: 'current' | 'all') => void;
-  /** 退出随机模式 */
   exitRandom: () => void;
-  /** 获取当前语料库的所有碎片 */
   getCurrentFragments: () => CorpusFragment[];
-  /** 获取指定分类的碎片 */
   getFragmentsByCategory: (categoryId: string) => CorpusFragment[];
-  /** 获取当前分类的原始条目列表 */
   getCurrentRawEntries: () => CorpusEntry[];
+  /** 导入自定义语料包 */
+  importCorpusPack: (name: string, fragments: CorpusFragment[], description?: string) => void;
+  /** 重命名自定义语料包 */
+  renameCorpusPack: (id: string, name: string) => void;
+  /** 删除自定义语料包 */
+  deleteCorpusPack: (id: string) => void;
+  /** 收藏 / 取消收藏 */
+  toggleFavorite: (fragment: CorpusFragment) => void;
+  isFavorite: (id: string) => boolean;
 }
 
 export const useCorpusStore = create<CorpusState>((set, get) => ({
   corpora: [...BUILTIN_CORPORA],
+  categories: ALL_CATEGORIES.map((c) => ({ ...c })),
   fragmentsByCategory: {},
   rawEntriesByCategory: {},
-  selectedFragments: loadSelectedDraft(),
+  customPacks: [],
+  favorites: [],
+  // 初始必须为空数组以保证 SSR 与客户端首次渲染一致（水合后再恢复本地草稿，避免 Hydration 错误）
+  selectedFragments: [],
   searchQuery: '',
   currentCorpusId: 'recommend_corpus',
   searchResults: [],
@@ -77,24 +97,35 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
   randomScope: 'current',
   isLoading: false,
   isLoaded: false,
+  error: null,
 
   loadAllCorpora: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const [data, rawData] = await Promise.all([
         loadAllCorpusData(),
         Promise.resolve(loadAllCorpusRawData()),
       ]);
+      const customPacks = listCustomPacks();
+      const favorites = loadFavorites();
+      const merged = buildUserData(data, customPacks, favorites);
       set({
-        fragmentsByCategory: data,
+        fragmentsByCategory: merged,
         rawEntriesByCategory: rawData,
+        categories: categoriesWithCounts(merged),
+        customPacks,
+        favorites,
         corpora: [...BUILTIN_CORPORA],
         isLoaded: true,
         isLoading: false,
       });
     } catch (error) {
       console.error('Failed to load corpus data:', error);
-      set({ isLoading: false, isLoaded: true });
+      set({
+        isLoading: false,
+        isLoaded: true,
+        error: '语料库加载失败，请刷新重试',
+      });
     }
   },
 
@@ -122,6 +153,14 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
       return { selectedFragments };
     }),
 
+  addFragments: (fragments) =>
+    set((state) => {
+      const existingIds = new Set(state.selectedFragments.map((f) => f.id));
+      const merged = [...state.selectedFragments, ...fragments.filter((f) => !existingIds.has(f.id))];
+      saveSelectedDraft(merged);
+      return { selectedFragments: merged };
+    }),
+
   removeFragment: (id) =>
     set((state) => {
       const selectedFragments = state.selectedFragments.filter((f) => f.id !== id);
@@ -139,6 +178,10 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
     set({ selectedFragments: fragments });
   },
 
+  restoreSelectedDraft: () => {
+    set({ selectedFragments: loadSelectedDraft() });
+  },
+
   loadRandom: (count, scope) => {
     const { fragmentsByCategory, currentCorpusId } = get();
     let pool: CorpusFragment[] = [];
@@ -147,7 +190,6 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
     } else {
       pool = Object.values(fragmentsByCategory).flat();
     }
-    // Fisher-Yates 洗牌
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -162,8 +204,7 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
     });
   },
 
-  exitRandom: () =>
-    set({ randomMode: false, randomFragments: [], randomScope: 'current' }),
+  exitRandom: () => set({ randomMode: false, randomFragments: [], randomScope: 'current' }),
 
   getCurrentFragments: () => {
     const { currentCorpusId, fragmentsByCategory } = get();
@@ -171,13 +212,86 @@ export const useCorpusStore = create<CorpusState>((set, get) => ({
     return fragmentsByCategory[currentCorpusId] || [];
   },
 
-  getFragmentsByCategory: (categoryId) => {
-    return get().fragmentsByCategory[categoryId] || [];
-  },
+  getFragmentsByCategory: (categoryId) => get().fragmentsByCategory[categoryId] || [],
 
   getCurrentRawEntries: () => {
     const { currentCorpusId, rawEntriesByCategory } = get();
     if (!currentCorpusId) return [];
     return rawEntriesByCategory[currentCorpusId] || [];
   },
+
+  importCorpusPack: (name, fragments, description) => {
+    const pack = createCustomPack(name, fragments, description);
+    set((state) => {
+      const customPacks = [pack, ...state.customPacks];
+      const fragmentsByCategory = buildUserData(
+        {
+          classical_poetry: state.fragmentsByCategory.classical_poetry,
+          idiom: state.fragmentsByCategory.idiom,
+          modern_literature: state.fragmentsByCategory.modern_literature,
+          daily_corpus: state.fragmentsByCategory.daily_corpus,
+          recommend_corpus: state.fragmentsByCategory.recommend_corpus,
+        },
+        customPacks,
+        state.favorites,
+      );
+      return {
+        customPacks,
+        fragmentsByCategory,
+        categories: categoriesWithCounts(fragmentsByCategory),
+        currentCorpusId: 'custom_corpus',
+      };
+    });
+  },
+
+  renameCorpusPack: (id, name) => {
+    renameCustomPack(id, name);
+    const customPacks = listCustomPacks();
+    set((state) => ({
+      customPacks,
+      categories: categoriesWithCounts(state.fragmentsByCategory),
+    }));
+  },
+
+  deleteCorpusPack: (id) => {
+    deleteCustomPack(id);
+    set((state) => {
+      const customPacks = state.customPacks.filter((p) => p.id !== id);
+      const fragmentsByCategory = buildUserData(
+        {
+          classical_poetry: state.fragmentsByCategory.classical_poetry,
+          idiom: state.fragmentsByCategory.idiom,
+          modern_literature: state.fragmentsByCategory.modern_literature,
+          daily_corpus: state.fragmentsByCategory.daily_corpus,
+          recommend_corpus: state.fragmentsByCategory.recommend_corpus,
+        },
+        customPacks,
+        state.favorites,
+      );
+      return {
+        customPacks,
+        fragmentsByCategory,
+        categories: categoriesWithCounts(fragmentsByCategory),
+      };
+    });
+  },
+
+  toggleFavorite: (fragment) => {
+    const { favorites } = get();
+    const exists = favorites.some((f) => f.id === fragment.id);
+    const next = exists
+      ? favorites.filter((f) => f.id !== fragment.id)
+      : [...favorites, { ...fragment }];
+    saveFavorites(next);
+    set((state) => {
+      const fragmentsByCategory = { ...state.fragmentsByCategory, favorites: next };
+      return {
+        favorites: next,
+        fragmentsByCategory,
+        categories: categoriesWithCounts(fragmentsByCategory),
+      };
+    });
+  },
+
+  isFavorite: (id) => get().favorites.some((f) => f.id === id),
 }));

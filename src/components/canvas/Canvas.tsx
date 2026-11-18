@@ -39,7 +39,7 @@ function getBackgroundStyle(bg: CanvasBackground): React.CSSProperties {
 }
 
 export default function Canvas({ id = 'canvas-main', className = '' }: CanvasProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasContentRef = useRef<HTMLDivElement>(null);
 
   // Canvas droppable on the outer container for reliable collision detection
@@ -60,6 +60,7 @@ export default function Canvas({ id = 'canvas-main', className = '' }: CanvasPro
   const selectFragment = useCanvasStore((s) => s.selectFragment);
   const clearSelection = useCanvasStore((s) => s.clearSelection);
   const updateFragment = useCanvasStore((s) => s.updateFragment);
+  const alignmentGuides = useCanvasStore((s) => s.alignmentGuides);
 
   // Zoom & pan state (synced with store for delta compensation)
   const [zoom, setZoom] = useState(storeZoom);
@@ -289,6 +290,32 @@ export default function Canvas({ id = 'canvas-main', className = '' }: CanvasPro
           </svg>
         )}
 
+        {/* 对齐辅助线 */}
+        {alignmentGuides.map((g, i) =>
+          g.orientation === 'vertical' ? (
+            <div
+              key={`v-${g.position.toFixed(1)}-${i}`}
+              className="pointer-events-none absolute z-[60]"
+              style={{ left: g.position, top: 0, bottom: 0, width: 1, background: '#f43f5e' }}
+            />
+          ) : (
+            <div
+              key={`h-${g.position.toFixed(1)}-${i}`}
+              className="pointer-events-none absolute z-[60]"
+              style={{ top: g.position, left: 0, right: 0, height: 1, background: '#f43f5e' }}
+            />
+          ),
+        )}
+
+        {/* 空画布提示 */}
+        {fragments.length === 0 && (
+          <div className="pointer-events-none absolute inset-0 z-[70] flex flex-col items-center justify-center text-center">
+            <div className="text-4xl">✂️</div>
+            <p className="mt-3 text-sm text-stone-400">从左侧语料面板拖拽碎片到这里</p>
+            <p className="mt-1 text-xs text-stone-300">或点击「发送到画布」批量添加</p>
+          </div>
+        )}
+
         {/* Drop zone hint */}
         {showDropIndicator && (
           <div
@@ -309,7 +336,7 @@ export default function Canvas({ id = 'canvas-main', className = '' }: CanvasPro
                 key={fragment.id}
                 fragment={fragment}
                 isSelected={selectedIds.includes(fragment.id)}
-                onSelect={() => selectFragment(fragment.id)}
+                onSelect={(additive?: boolean) => selectFragment(fragment.id, additive)}
                 onUpdate={(updates) => updateFragment(fragment.id, updates)}
                 canvasZoom={zoom}
               />

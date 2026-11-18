@@ -1,68 +1,117 @@
 'use client';
 
 import { create } from 'zustand';
-import type { CanvasFragment, CanvasBackground, CanvasGrid, Position, GlobalTextStyle, CanvasSnapshot } from '@/types/canvas';
+import type {
+  CanvasFragment,
+  CanvasBackground,
+  CanvasGrid,
+  Position,
+  GlobalTextStyle,
+  CanvasSnapshot,
+} from '@/types/canvas';
 import { generateId } from '@/lib/utils/id';
 import { generateTornEdgePercent } from '@/lib/canvas/clipPaths';
+import {
+  estimateFragmentSize,
+  getFragmentBounds,
+  unionBounds,
+  normalizeRotation,
+} from '@/lib/canvas/geometry';
+import { snapToGrid, type AlignmentGuide } from '@/lib/canvas/alignment';
 
-/** 根据文本和字号估算碎片尺寸（中文等宽，确保默认单行显示） */
-function estimateFragmentSize(text: string, fontSize: number): { width: number; height: number } {
-  // 中文一字宽度 ≈ fontSize；用 1.05 系数留出余量，避免边缘字符换行
-  const charWidth = fontSize * 1.05;
-  const padding = 16;
-  const lines = text.split('\n');
-  const maxLineLen = Math.max(...lines.map((l) => l.length));
-  return {
-    width: Math.round(maxLineLen * charWidth + padding * 2),
-    height: Math.round(lines.length * (fontSize * 1.4) + padding * 2),
-  };
-}
+export type AlignMode = 'left' | 'centerX' | 'right' | 'top' | 'centerY' | 'bottom';
+export type DistributeAxis = 'horizontal' | 'vertical';
 
-/** 从文本生成撕裂边缘 clip-path（百分比格式） */
+const MAX_HISTORY = 50;
+
+/** 从文本与字号生成撕裂边缘（百分比） */
 function makeClipPath(text: string, fontSize: number, seed: string): string {
   const { width, height } = estimateFragmentSize(text, fontSize);
   const hashCode = seed.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  return generateTornEdgePercent({
-    width,
-    height,
-    roughness: 0.08,
-    segments: 4,
-    seed: hashCode,
-  });
+  return generateTornEdgePercent({ width, height, roughness: 0.08, segments: 4, seed: hashCode });
+}
+
+const DEFAULT_GLOBAL_STYLE: GlobalTextStyle = {
+  fontFamily: 'serif',
+  fontSize: 24,
+  color: '#333333',
+  letterSpacing: 2,
+  lineHeight: 1.6,
+  direction: 'horizontal',
+};
+
+const DEFAULT_BG: CanvasBackground = { type: 'solid', value: '#f5f0e8', opacity: 1 };
+const DEFAULT_GRID: CanvasGrid = { enabled: false, spacing: 20, snap: false };
+
+function cloneFragment(f: CanvasFragment): CanvasFragment {
+  return JSON.parse(JSON.stringify(f)) as CanvasFragment;
+}
+
+/* ===== 历史记录（时间 + 动作键去重，把拖拽/滑块的连续更新合并为一个历史步） ===== */
+let lastRecordKey: string | null = null;
+let lastRecordAt = 0;
+
+function snapshotOf(state: CanvasState): CanvasSnapshot {
+  return {
+    fragments: state.fragments,
+    background: state.background,
+    grid: state.grid,
+    canvasSize: state.canvasSize,
+    globalTextStyle: state.globalTextStyle,
+  };
+}
+
+function pushPast(state: CanvasState, coalesceKey?: string): CanvasSnapshot[] {
+  const now = Date.now();
+  if (coalesceKey && coalesceKey === lastRecordKey && now - lastRecordAt < 600) {
+    lastRecordAt = now;
+    return state.historyPast;
+  }
+  lastRecordKey = coalesceKey ?? null;
+  lastRecordAt = now;
+  const past = [...state.historyPast, snapshotOf(state)];
+  return past.length > MAX_HISTORY ? past.slice(past.length - MAX_HISTORY) : past;
+}
+
+function resetHistoryTracking() {
+  lastRecordKey = null;
+  lastRecordAt = 0;
+}
+
+function zCounterFrom(fragments: CanvasFragment[]): number {
+  return fragments.reduce((max, f) => Math.max(max, f.zIndex), 0) + 1;
 }
 
 interface CanvasState {
   fragments: CanvasFragment[];
   selectedIds: string[];
-  /** 画布尺寸（像素） */
   canvasSize: { width: number; height: number };
   background: CanvasBackground;
   grid: CanvasGrid;
-  /** 画布缩放级别 */
   zoom: number;
-  /** 画布平移偏移 */
   panOffset: { x: number; y: number };
-  /** 全局自增 zIndex 计数器 */
   _zCounter: number;
-  /** 适配屏幕信号（递增触发 Canvas 执行 fitToScreen） */
   fitSignal: number;
-  /** 全局文字默认样式（新建碎片继承） */
   globalTextStyle: GlobalTextStyle;
-  /** 作品标题 */
   title: string;
-  /** 是否有未保存的变更 */
   dirty: boolean;
+  /** 剪贴板（复制的碎片） */
+  clipboard: CanvasFragment[];
+  /** 撤销 / 重做历史 */
+  historyPast: CanvasSnapshot[];
+  historyFuture: CanvasSnapshot[];
+  /** 拖动时显示的对齐辅助线 */
+  alignmentGuides: AlignmentGuide[];
 
   addFragment: (fragment: Partial<CanvasFragment> & { text: string }) => string;
   removeFragment: (id: string) => void;
+  removeFragments: (ids: string[]) => void;
   updateFragment: (id: string, updates: Partial<CanvasFragment>) => void;
-  /** 更新碎片文本并重算尺寸/撕裂边缘 clipPath */
   updateFragmentText: (id: string, text: string) => void;
-  /** 批量更新单个碎片的 style 字段（局部合并） */
   updateFragmentStyle: (id: string, style: Partial<CanvasFragment['style']>) => void;
-  /** 手动调整碎片宽高（标记 userSized，后续字号/文字变化不再重算） */
   resizeFragment: (id: string, width: number, height: number) => void;
-  selectFragment: (id: string) => void;
+  selectFragment: (id: string, additive?: boolean) => void;
+  setSelectedIds: (ids: string[]) => void;
   selectAll: () => void;
   clearSelection: () => void;
   setZoom: (zoom: number) => void;
@@ -70,54 +119,50 @@ interface CanvasState {
   setCanvasSize: (size: { width: number; height: number }) => void;
   setBackground: (background: CanvasBackground) => void;
   setGrid: (grid: CanvasGrid) => void;
-  /** 请求画布适配屏幕（递增 fitSignal） */
   requestFit: () => void;
-  /** 设置全局文字默认样式 */
   setGlobalTextStyle: (style: GlobalTextStyle) => void;
-  /** 将全局样式应用到所有现有碎片 */
   applyStyleToAll: () => void;
-  /** 设置作品标题 */
   setTitle: (title: string) => void;
-  /** 从快照恢复画布 */
   loadSnapshot: (snapshot: CanvasSnapshot) => void;
-  /** 导出当前画布快照 */
   getSnapshot: () => CanvasSnapshot;
-  /** 标记为已保存（清除 dirty） */
   markSaved: () => void;
-  /** 重置画布到初始空状态（清空所有内容） */
   resetCanvas: () => void;
-  /** 将碎片移到最上层 */
   bringToFront: (id: string) => void;
-  /** 将碎片移到最下层 */
   sendToBack: (id: string) => void;
-  /** zIndex 上移一层 */
   bringForward: (id: string) => void;
-  /** zIndex 下移一层 */
   sendBackward: (id: string) => void;
-  /** 从语料碎片批量添加到画布 */
   addFragmentsFromCorpus: (fragments: Array<{ text: string; source?: string; author?: string }>) => void;
+
+  // ---- 高级编辑 ----
+  copySelection: () => void;
+  pasteClipboard: (offset?: number) => string[];
+  duplicateSelection: () => void;
+  undo: () => void;
+  redo: () => void;
+  setAlignmentGuides: (guides: AlignmentGuide[]) => void;
+  alignSelected: (mode: AlignMode) => void;
+  distributeSelected: (axis: DistributeAxis) => void;
+  rotateSelection: (delta: number) => void;
+  nudgeSelection: (dx: number, dy: number) => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   fragments: [],
   selectedIds: [],
   canvasSize: { width: 800, height: 600 },
-  background: { type: 'solid', value: '#f5f0e8', opacity: 1 },
-  grid: { enabled: false, spacing: 20 },
+  background: { ...DEFAULT_BG },
+  grid: { ...DEFAULT_GRID },
   zoom: 1,
   panOffset: { x: 0, y: 0 },
   _zCounter: 1,
   fitSignal: 0,
-  globalTextStyle: {
-    fontFamily: 'serif',
-    fontSize: 24,
-    color: '#333333',
-    letterSpacing: 2,
-    lineHeight: 1.6,
-    direction: 'horizontal',
-  },
+  globalTextStyle: { ...DEFAULT_GLOBAL_STYLE },
   title: '未命名作品',
   dirty: false,
+  clipboard: [],
+  historyPast: [],
+  historyFuture: [],
+  alignmentGuides: [],
 
   addFragment: (partial) => {
     const id = partial.id || generateId();
@@ -130,9 +175,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       id,
       text: partial.text,
       position: partial.position || { x: 40, y: 40 },
-      rotation: partial.rotation !== undefined
-        ? partial.rotation
-        : (5 + Math.random() * 5) * (Math.random() < 0.5 ? -1 : 1),
+      rotation: partial.rotation !== undefined ? partial.rotation : (5 + Math.random() * 5) * (Math.random() < 0.5 ? -1 : 1),
       scale: partial.scale || 1,
       zIndex: z,
       style: {
@@ -156,117 +199,145 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       fragments: [...state.fragments, fragment],
       _zCounter: state._zCounter + 1,
       dirty: true,
+      historyPast: pushPast(state),
+      historyFuture: [],
     }));
 
     return id;
   },
 
-  removeFragment: (id) =>
+  removeFragment: (id) => {
     set((state) => ({
       fragments: state.fragments.filter((f) => f.id !== id),
       selectedIds: state.selectedIds.filter((sid) => sid !== id),
       dirty: true,
-    })),
+      historyPast: pushPast(state, `remove:${id}`),
+      historyFuture: [],
+    }));
+  },
 
-  updateFragment: (id, updates) =>
+  removeFragments: (ids) => {
+    const idSet = new Set(ids);
     set((state) => ({
-      fragments: state.fragments.map((f) =>
-        f.id === id ? { ...f, ...updates } : f,
-      ),
+      fragments: state.fragments.filter((f) => !idSet.has(f.id)),
+      selectedIds: state.selectedIds.filter((sid) => !idSet.has(sid)),
       dirty: true,
-    })),
+      historyPast: pushPast(state, ids.length === 1 ? `remove:${ids[0]}` : 'remove-many'),
+      historyFuture: [],
+    }));
+  },
 
-  updateFragmentText: (id, text) =>
+  updateFragment: (id, updates) => {
+    set((state) => ({
+      fragments: state.fragments.map((f) => (f.id === id ? { ...f, ...updates } : f)),
+      dirty: true,
+      historyPast: pushPast(state, `update:${id}`),
+      historyFuture: [],
+    }));
+  },
+
+  updateFragmentText: (id, text) => {
     set((state) => ({
       fragments: state.fragments.map((f) => {
         if (f.id !== id) return f;
-        // 用户已手动调整过尺寸 → 仅更新文本，文字在新尺寸下自适应换行
-        if (f.userSized) {
-          return { ...f, text };
-        }
+        if (f.userSized) return { ...f, text };
         const fontSize = f.style?.fontSize || 24;
         const { width, height } = estimateFragmentSize(text, fontSize);
-        return {
-          ...f,
-          text,
-          width,
-          height,
-          clipPath: makeClipPath(text, fontSize, id),
-        };
+        return { ...f, text, width, height, clipPath: makeClipPath(text, fontSize, id) };
       }),
       dirty: true,
-    })),
+      historyPast: pushPast(state, `text:${id}`),
+      historyFuture: [],
+    }));
+  },
 
-  updateFragmentStyle: (id, style) =>
+  updateFragmentStyle: (id, style) => {
     set((state) => ({
       fragments: state.fragments.map((f) => {
         if (f.id !== id) return f;
         const nextStyle = { ...f.style, ...style };
-        // 字号变化时：若用户未手动调整过尺寸，则同步重算尺寸与撕裂边缘
-        if (
-          style.fontSize !== undefined &&
-          style.fontSize !== f.style?.fontSize &&
-          !f.userSized
-        ) {
+        if (style.fontSize !== undefined && style.fontSize !== f.style?.fontSize && !f.userSized) {
           const { width, height } = estimateFragmentSize(f.text, style.fontSize);
-          return {
-            ...f,
-            style: nextStyle,
-            width,
-            height,
-            clipPath: makeClipPath(f.text, style.fontSize, id),
-          };
+          return { ...f, style: nextStyle, width, height, clipPath: makeClipPath(f.text, style.fontSize, id) };
         }
         return { ...f, style: nextStyle };
       }),
       dirty: true,
-    })),
+      historyPast: pushPast(state, `style:${id}`),
+      historyFuture: [],
+    }));
+  },
 
-  resizeFragment: (id, width, height) =>
+  resizeFragment: (id, width, height) => {
     set((state) => ({
       fragments: state.fragments.map((f) =>
         f.id === id
-          ? {
-              ...f,
-              width: Math.max(40, Math.round(width)),
-              height: Math.max(30, Math.round(height)),
-              userSized: true,
-            }
+          ? { ...f, width: Math.max(40, Math.round(width)), height: Math.max(30, Math.round(height)), userSized: true }
           : f,
       ),
       dirty: true,
-    })),
+      historyPast: pushPast(state, `resize:${id}`),
+      historyFuture: [],
+    }));
+  },
 
-  selectFragment: (id) =>
-    set((state) => ({
-      selectedIds: state.selectedIds.includes(id)
-        ? state.selectedIds.filter((sid) => sid !== id)
-        : [...state.selectedIds, id],
-    })),
+  selectFragment: (id, additive = true) => {
+    set((state) => {
+      if (!additive) return { selectedIds: [id] };
+      return {
+        selectedIds: state.selectedIds.includes(id)
+          ? state.selectedIds.filter((sid) => sid !== id)
+          : [...state.selectedIds, id],
+      };
+    });
+  },
 
-  selectAll: () =>
-    set((state) => ({
-      selectedIds: state.fragments.map((f) => f.id),
-    })),
+  setSelectedIds: (ids) => set({ selectedIds: ids }),
+
+  selectAll: () => set({ selectedIds: get().fragments.map((f) => f.id) }),
 
   clearSelection: () => set({ selectedIds: [] }),
 
-  setBackground: (background) => set({ background, dirty: true }),
+  setZoom: (zoom) => set({ zoom }),
+  setPanOffset: (offset) => set({ panOffset: offset }),
 
-  setGrid: (grid) => set({ grid, dirty: true }),
-
-  setCanvasSize: (size) =>
-    set({
-      canvasSize: {
-        width: Math.max(100, Math.round(size.width)),
-        height: Math.max(100, Math.round(size.height)),
-      },
+  setCanvasSize: (size) => {
+    set((state) => ({
+      canvasSize: { width: Math.max(100, Math.round(size.width)), height: Math.max(100, Math.round(size.height)) },
       dirty: true,
-    }),
+      historyPast: pushPast(state, 'canvas-size'),
+      historyFuture: [],
+    }));
+  },
+
+  setBackground: (background) => {
+    set((state) => ({
+      background,
+      dirty: true,
+      historyPast: pushPast(state, 'background'),
+      historyFuture: [],
+    }));
+  },
+
+  setGrid: (grid) => {
+    set((state) => ({
+      grid,
+      dirty: true,
+      historyPast: pushPast(state, 'grid'),
+      historyFuture: [],
+    }));
+  },
 
   requestFit: () => set((s) => ({ fitSignal: s.fitSignal + 1 })),
 
-  setGlobalTextStyle: (style) => set({ globalTextStyle: { ...get().globalTextStyle, ...style }, dirty: true }),
+  setGlobalTextStyle: (style) => {
+    set((state) => ({
+      globalTextStyle: { ...state.globalTextStyle, ...style },
+      dirty: true,
+      historyPast: pushPast(state, 'global-style'),
+      historyFuture: [],
+    }));
+  },
 
   applyStyleToAll: () => {
     const g = get().globalTextStyle;
@@ -284,12 +355,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         },
       })),
       dirty: true,
+      historyPast: pushPast(state, 'apply-all'),
+      historyFuture: [],
     }));
   },
 
   setTitle: (title) => set({ title, dirty: true }),
 
-  loadSnapshot: (snapshot) =>
+  loadSnapshot: (snapshot) => {
+    resetHistoryTracking();
     set({
       fragments: snapshot.fragments,
       background: snapshot.background,
@@ -297,92 +371,87 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       canvasSize: snapshot.canvasSize,
       globalTextStyle: snapshot.globalTextStyle,
       selectedIds: [],
-      _zCounter: snapshot.fragments.reduce((max, f) => Math.max(max, f.zIndex), 0) + 1,
+      _zCounter: zCounterFrom(snapshot.fragments),
+      historyPast: [],
+      historyFuture: [],
+      alignmentGuides: [],
       dirty: false,
-    }),
+    });
+  },
+
+  getSnapshot: () => snapshotOf(get()),
 
   markSaved: () => set({ dirty: false }),
 
-  resetCanvas: () =>
+  resetCanvas: () => {
+    resetHistoryTracking();
     set({
       fragments: [],
       selectedIds: [],
       canvasSize: { width: 800, height: 600 },
-      background: { type: 'solid', value: '#f5f0e8', opacity: 1 },
-      grid: { enabled: false, spacing: 20 },
+      background: { ...DEFAULT_BG },
+      grid: { ...DEFAULT_GRID },
       zoom: 1,
       panOffset: { x: 0, y: 0 },
       _zCounter: 1,
       fitSignal: 0,
-      globalTextStyle: {
-        fontFamily: 'serif',
-        fontSize: 24,
-        color: '#333333',
-        letterSpacing: 2,
-        lineHeight: 1.6,
-        direction: 'horizontal',
-      },
+      globalTextStyle: { ...DEFAULT_GLOBAL_STYLE },
       title: '未命名作品',
       dirty: false,
-    }),
-
-  getSnapshot: () => {
-    const s = get();
-    return {
-      fragments: s.fragments,
-      background: s.background,
-      grid: s.grid,
-      canvasSize: s.canvasSize,
-      globalTextStyle: s.globalTextStyle,
-    };
+      historyPast: [],
+      historyFuture: [],
+      alignmentGuides: [],
+    });
   },
 
-  setZoom: (zoom) => set({ zoom }),
-
-  setPanOffset: (offset) => set({ panOffset: offset }),
-
   bringToFront: (id) => {
-    const maxZ = Math.max(...get().fragments.map((f) => f.zIndex), get()._zCounter);
-    set((state) => ({
-      _zCounter: maxZ + 1,
-      fragments: state.fragments.map((f) =>
-        f.id === id ? { ...f, zIndex: maxZ + 1 } : f,
-      ),
-      dirty: true,
-    }));
+    set((state) => {
+      const maxZ = Math.max(...state.fragments.map((f) => f.zIndex), state._zCounter);
+      return {
+        _zCounter: maxZ + 1,
+        fragments: state.fragments.map((f) => (f.id === id ? { ...f, zIndex: maxZ + 1 } : f)),
+        dirty: true,
+        historyPast: pushPast(state, `z:${id}`),
+        historyFuture: [],
+      };
+    });
   },
 
   sendToBack: (id) => {
-    const minZ = Math.min(...get().fragments.map((f) => f.zIndex), 1);
+    set((state) => {
+      const minZ = Math.min(...state.fragments.map((f) => f.zIndex), 1);
+      return {
+        _zCounter: state._zCounter + 1,
+        fragments: state.fragments.map((f) => (f.id === id ? { ...f, zIndex: minZ - 1 } : f)),
+        dirty: true,
+        historyPast: pushPast(state, `z:${id}`),
+        historyFuture: [],
+      };
+    });
+  },
+
+  bringForward: (id) => {
     set((state) => ({
+      fragments: state.fragments.map((f) => (f.id === id ? { ...f, zIndex: f.zIndex + 1 } : f)),
       _zCounter: state._zCounter + 1,
-      fragments: state.fragments.map((f) => {
-        if (f.id === id) return { ...f, zIndex: minZ - 1 };
-        return f;
-      }),
       dirty: true,
+      historyPast: pushPast(state, `z:${id}`),
+      historyFuture: [],
     }));
   },
 
-  bringForward: (id) =>
+  sendBackward: (id) => {
     set((state) => ({
-      fragments: state.fragments.map((f) =>
-        f.id === id ? { ...f, zIndex: f.zIndex + 1 } : f,
-      ),
-      _zCounter: state._zCounter + 1,
+      fragments: state.fragments.map((f) => (f.id === id ? { ...f, zIndex: Math.max(0, f.zIndex - 1) } : f)),
       dirty: true,
-    })),
-
-  sendBackward: (id) =>
-    set((state) => ({
-      fragments: state.fragments.map((f) =>
-        f.id === id ? { ...f, zIndex: Math.max(0, f.zIndex - 1) } : f,
-      ),
-      dirty: true,
-    })),
+      historyPast: pushPast(state, `z:${id}`),
+      historyFuture: [],
+    }));
+  },
 
   addFragmentsFromCorpus: (corpusFragments) => {
     const state = get();
+    const g = state.globalTextStyle;
     let z = state._zCounter;
     const newFragments: CanvasFragment[] = [];
     const startX = 40;
@@ -390,28 +459,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     for (let i = 0; i < corpusFragments.length; i++) {
       const { text } = corpusFragments[i];
-      const fontSize = 24;
+      const fontSize = g.fontSize || 24;
       const { width, height } = estimateFragmentSize(text, fontSize);
       const id = generateId();
-
       const fragment: CanvasFragment = {
         id,
         text,
-        position: {
-          x: startX + (i % 2) * 30, // 略微左右错开，有层次感
-          y: startY + i * (height + 16), // 垂直排列，每个碎片一行
-        },
-        rotation: (i % 3) * 0.5 - 0.5, // 少许随机旋转，有拼贴感
+        position: { x: startX + (i % 2) * 30, y: startY + i * (height + 16) },
+        rotation: (i % 3) * 0.5 - 0.5,
         scale: 1,
         zIndex: z++,
         style: {
-          fontFamily: 'serif',
+          fontFamily: g.fontFamily || 'serif',
           fontSize,
-          color: '#333333',
-          letterSpacing: 2,
-          lineHeight: 1.6,
+          color: g.color || '#333333',
+          letterSpacing: g.letterSpacing ?? 2,
+          lineHeight: g.lineHeight ?? 1.6,
           opacity: 1,
-          direction: 'horizontal',
+          direction: g.direction || 'horizontal',
         },
         locked: false,
         width,
@@ -426,6 +491,202 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       fragments: [...state.fragments, ...newFragments],
       _zCounter: z,
       dirty: true,
+      historyPast: pushPast(state, 'add-many'),
+      historyFuture: [],
+    }));
+  },
+
+  // ---- 高级编辑 ----
+
+  copySelection: () => {
+    const state = get();
+    const items = state.fragments.filter((f) => state.selectedIds.includes(f.id)).map(cloneFragment);
+    set({ clipboard: items });
+  },
+
+  pasteClipboard: (offset = 24) => {
+    const state = get();
+    if (state.clipboard.length === 0) return [];
+    const newFragments: CanvasFragment[] = [];
+    let z = state._zCounter;
+    for (const src of state.clipboard) {
+      const id = generateId();
+      newFragments.push({
+        ...cloneFragment(src),
+        id,
+        position: { x: Math.max(0, src.position.x + offset), y: Math.max(0, src.position.y + offset) },
+        zIndex: z++,
+      });
+    }
+    const newIds = newFragments.map((f) => f.id);
+    set((state) => ({
+      fragments: [...state.fragments, ...newFragments],
+      selectedIds: newIds,
+      _zCounter: z,
+      dirty: true,
+      historyPast: pushPast(state, 'paste'),
+      historyFuture: [],
+    }));
+    return newIds;
+  },
+
+  duplicateSelection: () => {
+    const state = get();
+    if (state.selectedIds.length === 0) return;
+    state.copySelection();
+    state.pasteClipboard(24);
+  },
+
+  undo: () => {
+    set((state) => {
+      const prev = state.historyPast[state.historyPast.length - 1];
+      if (!prev) return {};
+      const future = [...state.historyFuture, snapshotOf(state)].slice(-MAX_HISTORY);
+      return {
+        ...prev,
+        selectedIds: [],
+        _zCounter: zCounterFrom(prev.fragments),
+        dirty: true,
+        historyPast: state.historyPast.slice(0, -1),
+        historyFuture: future,
+      };
+    });
+  },
+
+  redo: () => {
+    set((state) => {
+      const next = state.historyFuture[state.historyFuture.length - 1];
+      if (!next) return {};
+      const past = [...state.historyPast, snapshotOf(state)].slice(-MAX_HISTORY);
+      return {
+        ...next,
+        selectedIds: [],
+        _zCounter: zCounterFrom(next.fragments),
+        dirty: true,
+        historyPast: past,
+        historyFuture: state.historyFuture.slice(0, -1),
+      };
+    });
+  },
+
+  setAlignmentGuides: (guides) => set({ alignmentGuides: guides }),
+
+  alignSelected: (mode) => {
+    set((state) => {
+      const selected = state.fragments.filter((f) => state.selectedIds.includes(f.id));
+      if (selected.length === 0) return {};
+      const ref =
+        selected.length === 1
+          ? {
+              left: 0,
+              top: 0,
+              right: state.canvasSize.width,
+              bottom: state.canvasSize.height,
+              centerX: state.canvasSize.width / 2,
+              centerY: state.canvasSize.height / 2,
+            }
+          : unionBounds(selected);
+      if (!ref) return {};
+      const next = state.fragments.map((f) => {
+        if (!state.selectedIds.includes(f.id)) return f;
+        const b = getFragmentBounds(f);
+        let x = f.position.x;
+        let y = f.position.y;
+        if (mode === 'left') x = ref.left;
+        else if (mode === 'centerX') x = ref.centerX - b.width / 2;
+        else if (mode === 'right') x = ref.right - b.width;
+        else if (mode === 'top') y = ref.top;
+        else if (mode === 'centerY') y = ref.centerY - b.height / 2;
+        else if (mode === 'bottom') y = ref.bottom - b.height;
+        return { ...f, position: { x: Math.round(x), y: Math.round(y) } };
+      });
+      return {
+        fragments: next,
+        dirty: true,
+        historyPast: pushPast(state, 'align'),
+        historyFuture: [],
+      };
+    });
+  },
+
+  distributeSelected: (axis) => {
+    set((state) => {
+      const selected = state.fragments.filter((f) => state.selectedIds.includes(f.id));
+      if (selected.length < 3) return {};
+      if (axis === 'horizontal') {
+        const sorted = [...selected].sort((a, b) => getFragmentBounds(a).left - getFragmentBounds(b).left);
+        const first = getFragmentBounds(sorted[0]);
+        const last = getFragmentBounds(sorted[sorted.length - 1]);
+        const totalSize = sorted.reduce((sum, f) => sum + getFragmentBounds(f).width, 0);
+        const span = last.right - first.left;
+        const gap = (span - totalSize) / (sorted.length - 1);
+        let cursor = first.left;
+        return {
+          fragments: state.fragments.map((f) => {
+            const idx = sorted.findIndex((s) => s.id === f.id);
+            if (idx === -1) return f;
+            const b = getFragmentBounds(f);
+            const next = { x: cursor, y: f.position.y };
+            cursor = cursor + b.width + gap;
+            return { ...f, position: next };
+          }),
+          dirty: true,
+          historyPast: pushPast(state, 'distribute'),
+          historyFuture: [],
+        };
+      }
+      const sorted = [...selected].sort((a, b) => getFragmentBounds(a).top - getFragmentBounds(b).top);
+      const first = getFragmentBounds(sorted[0]);
+      const last = getFragmentBounds(sorted[sorted.length - 1]);
+      const totalSize = sorted.reduce((sum, f) => sum + getFragmentBounds(f).height, 0);
+      const span = last.bottom - first.top;
+      const gap = (span - totalSize) / (sorted.length - 1);
+      let cursor = first.top;
+      return {
+        fragments: state.fragments.map((f) => {
+          const idx = sorted.findIndex((s) => s.id === f.id);
+          if (idx === -1) return f;
+          const b = getFragmentBounds(f);
+          const next = { x: f.position.x, y: cursor };
+          cursor = cursor + b.height + gap;
+          return { ...f, position: next };
+        }),
+        dirty: true,
+        historyPast: pushPast(state, 'distribute'),
+        historyFuture: [],
+      };
+    });
+  },
+
+  rotateSelection: (delta) => {
+    set((state) => ({
+      fragments: state.fragments.map((f) =>
+        state.selectedIds.includes(f.id)
+          ? { ...f, rotation: normalizeRotation(f.rotation + delta) }
+          : f,
+      ),
+      dirty: true,
+      historyPast: pushPast(state, 'rotate'),
+      historyFuture: [],
+    }));
+  },
+
+  nudgeSelection: (dx, dy) => {
+    set((state) => ({
+      fragments: state.fragments.map((f) => {
+        if (!state.selectedIds.includes(f.id)) return f;
+        const b = getFragmentBounds(f);
+        return {
+          ...f,
+          position: {
+            x: Math.max(-b.width + 20, f.position.x + dx),
+            y: Math.max(-b.height + 20, f.position.y + dy),
+          },
+        };
+      }),
+      dirty: true,
+      historyPast: pushPast(state, 'nudge'),
+      historyFuture: [],
     }));
   },
 }));

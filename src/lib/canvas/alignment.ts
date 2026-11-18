@@ -1,138 +1,183 @@
 import type { CanvasFragment } from '@/types/canvas';
+import { getFragmentBounds, type Bounds } from '@/lib/canvas/geometry';
 
 /**
  * 对齐辅助线检测
- * 当碎片边界间距小于 threshold 时，返回对齐线位置
+ *
+ * 当活动碎片的左/中/右（上/中/下）边界与其他碎片或画布边界的距离
+ * 小于 threshold 时，返回对齐线位置与吸附偏移量。
  */
 
 export interface AlignmentGuide {
-  /** 对齐线方向 */
+  /** 对齐线方向：vertical 表示一条竖线，horizontal 表示一条横线 */
   orientation: 'horizontal' | 'vertical';
-  /** 对齐线位置（px） */
+  /** 对齐线位置（画布坐标 px） */
   position: number;
   /** 对齐类型 */
   type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
+  /** 对齐对象：其他碎片或画布 */
+  source: 'fragment' | 'canvas';
 }
 
-interface FragmentBounds {
-  id: string;
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-  centerX: number;
-  centerY: number;
-}
-
-function getBounds(fragment: CanvasFragment): FragmentBounds {
-  const { position, style } = fragment;
-  // 假设每字约 24px 宽
-  const charWidth = style?.fontSize || 24;
-  const textWidth = fragment.text.length * charWidth;
-  const textHeight = (style?.fontSize || 24) * (style?.lineHeight || 1.5);
-
-  return {
-    id: fragment.id,
-    left: position.x,
-    right: position.x + textWidth,
-    top: position.y,
-    bottom: position.y + textHeight,
-    centerX: position.x + textWidth / 2,
-    centerY: position.y + textHeight / 2,
-  };
+export interface AlignmentResult {
+  guides: AlignmentGuide[];
+  /** 让活动碎片的边界吸附到对齐线所需的偏移量 */
+  offsetX: number;
+  offsetY: number;
 }
 
 const THRESHOLD = 6; // 对齐检测阈值（px）
 
+interface Candidate {
+  position: number;
+  type: AlignmentGuide['type'];
+  source: AlignmentGuide['source'];
+}
+
 /**
- * 检测活动碎片与其他碎片的对齐线
+ * 检测活动碎片与其他碎片 / 画布的对齐关系
+ */
+export function detectAlignment(
+  active: Bounds,
+  others: CanvasFragment[],
+  canvasSize?: { width: number; height: number },
+  threshold: number = THRESHOLD,
+): AlignmentResult {
+  const verticalCandidates: Candidate[] = [];
+  const horizontalCandidates: Candidate[] = [];
+
+  for (const other of others) {
+    const b = getFragmentBounds(other);
+    verticalCandidates.push(
+      { position: b.left, type: 'left', source: 'fragment' },
+      { position: b.centerX, type: 'center', source: 'fragment' },
+      { position: b.right, type: 'right', source: 'fragment' },
+    );
+    horizontalCandidates.push(
+      { position: b.top, type: 'top', source: 'fragment' },
+      { position: b.centerY, type: 'middle', source: 'fragment' },
+      { position: b.bottom, type: 'bottom', source: 'fragment' },
+    );
+  }
+
+  if (canvasSize) {
+    verticalCandidates.push(
+      { position: 0, type: 'left', source: 'canvas' },
+      { position: canvasSize.width / 2, type: 'center', source: 'canvas' },
+      { position: canvasSize.width, type: 'right', source: 'canvas' },
+    );
+    horizontalCandidates.push(
+      { position: 0, type: 'top', source: 'canvas' },
+      { position: canvasSize.height / 2, type: 'middle', source: 'canvas' },
+      { position: canvasSize.height, type: 'bottom', source: 'canvas' },
+    );
+  }
+
+  const activeX: { value: number; type: AlignmentGuide['type'] }[] = [
+    { value: active.left, type: 'left' },
+    { value: active.centerX, type: 'center' },
+    { value: active.right, type: 'right' },
+  ];
+  const activeY: { value: number; type: AlignmentGuide['type'] }[] = [
+    { value: active.top, type: 'top' },
+    { value: active.centerY, type: 'middle' },
+    { value: active.bottom, type: 'bottom' },
+  ];
+
+  const guides: AlignmentGuide[] = [];
+  let bestX = threshold + 1;
+  let offsetX = 0;
+  let bestY = threshold + 1;
+  let offsetY = 0;
+  const seenVertical = new Set<number>();
+  const seenHorizontal = new Set<number>();
+
+  for (const anchor of activeX) {
+    for (const candidate of verticalCandidates) {
+      const delta = candidate.position - anchor.value;
+      if (Math.abs(delta) <= threshold) {
+        if (Math.abs(delta) < bestX) {
+          bestX = Math.abs(delta);
+          offsetX = delta;
+        }
+        const key = Math.round(candidate.position * 2) / 2;
+        if (!seenVertical.has(key)) {
+          seenVertical.add(key);
+          guides.push({
+            orientation: 'vertical',
+            position: candidate.position,
+            type: candidate.type,
+            source: candidate.source,
+          });
+        }
+      }
+    }
+  }
+
+  for (const anchor of activeY) {
+    for (const candidate of horizontalCandidates) {
+      const delta = candidate.position - anchor.value;
+      if (Math.abs(delta) <= threshold) {
+        if (Math.abs(delta) < bestY) {
+          bestY = Math.abs(delta);
+          offsetY = delta;
+        }
+        const key = Math.round(candidate.position * 2) / 2;
+        if (!seenHorizontal.has(key)) {
+          seenHorizontal.add(key);
+          guides.push({
+            orientation: 'horizontal',
+            position: candidate.position,
+            type: candidate.type,
+            source: candidate.source,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    guides,
+    offsetX: bestX <= threshold ? offsetX : 0,
+    offsetY: bestY <= threshold ? offsetY : 0,
+  };
+}
+
+/**
+ * 兼容旧接口：仅返回对齐线
  */
 export function detectAlignmentGuides(
   activeFragment: CanvasFragment,
   otherFragments: CanvasFragment[],
 ): AlignmentGuide[] {
-  const active = getBounds(activeFragment);
-  const guides: AlignmentGuide[] = [];
-
-  for (const other of otherFragments) {
-    if (other.id === activeFragment.id) continue;
-    const target = getBounds(other);
-
-    // 垂直对齐（左/中/右）
-    checkAlignment(active.left, target.left, 'vertical', 'left', guides);
-    checkAlignment(active.centerX, target.centerX, 'vertical', 'center', guides);
-    checkAlignment(active.right, target.right, 'vertical', 'right', guides);
-
-    // 水平对齐（上/中/下）
-    checkAlignment(active.top, target.top, 'horizontal', 'top', guides);
-    checkAlignment(active.centerY, target.centerY, 'horizontal', 'middle', guides);
-    checkAlignment(active.bottom, target.bottom, 'horizontal', 'bottom', guides);
-  }
-
-  return guides;
-}
-
-function checkAlignment(
-  a: number,
-  b: number,
-  orientation: 'horizontal' | 'vertical',
-  type: AlignmentGuide['type'],
-  guides: AlignmentGuide[],
-) {
-  if (Math.abs(a - b) <= THRESHOLD) {
-    guides.push({ orientation, position: b, type });
-  }
+  return detectAlignment(
+    getFragmentBounds(activeFragment),
+    otherFragments.filter((f) => f.id !== activeFragment.id),
+  ).guides;
 }
 
 /**
- * 吸附到最近的对齐线
+ * 兼容旧接口：返回吸附后的位置
  */
 export function snapToAlignment(
   fragment: CanvasFragment,
   otherFragments: CanvasFragment[],
   threshold: number = THRESHOLD,
 ): { x: number; y: number } {
-  const bounds = getBounds(fragment);
-  let snapX = bounds.left;
-  let snapY = bounds.top;
-  let minDistX = threshold;
-  let minDistY = threshold;
-
-  for (const other of otherFragments) {
-    if (other.id === fragment.id) continue;
-    const target = getBounds(other);
-
-    // 垂直吸附点：左对齐、中对齐、右对齐
-    const xTargets = [
-      { pos: target.left, type: 'left' },
-      { pos: target.centerX, type: 'center' },
-      { pos: target.right, type: 'right' },
-    ];
-    for (const { pos } of xTargets) {
-      const dist = Math.abs(bounds.left - pos);
-      if (dist < minDistX) {
-        minDistX = dist;
-        snapX = pos;
-      }
-    }
-
-    // 水平吸附点：上对齐、中对齐、下对齐
-    const yTargets = [
-      { pos: target.top, type: 'top' },
-      { pos: target.centerY, type: 'middle' },
-      { pos: target.bottom, type: 'bottom' },
-    ];
-    for (const { pos } of yTargets) {
-      const dist = Math.abs(bounds.top - pos);
-      if (dist < minDistY) {
-        minDistY = dist;
-        snapY = pos;
-      }
-    }
-  }
-
+  const result = detectAlignment(
+    getFragmentBounds(fragment),
+    otherFragments.filter((f) => f.id !== fragment.id),
+    undefined,
+    threshold,
+  );
   return {
-    x: minDistX < threshold ? snapX : fragment.position.x,
-    y: minDistY < threshold ? snapY : fragment.position.y,
+    x: Math.round(fragment.position.x + result.offsetX),
+    y: Math.round(fragment.position.y + result.offsetY),
   };
+}
+
+/** 将坐标吸附到网格 */
+export function snapToGrid(value: number, spacing: number): number {
+  if (!spacing || spacing <= 0) return value;
+  return Math.round(value / spacing) * spacing;
 }

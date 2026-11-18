@@ -1,5 +1,4 @@
 'use client';
 
-export function Toolbar() {
-  return <div>Toolbar Placeholder</div>;
-}
+// 兼容旧路径
+export { default } from '@/components/canvas/Toolbar';

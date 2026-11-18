@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>离线 · ClipPoems</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f5f0e8;
+        color: #3b322b;
+        font-family: 'Songti SC', 'SimSun', serif;
+        padding: 24px;
+      }
+      .card {
+        background: #fffdf7;
+        border: 1px solid #e0d6c4;
+        border-radius: 12px;
+        padding: 40px 32px;
+        max-width: 420px;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(59, 50, 43, 0.08);
+      }
+      .mark {
+        font-size: 42px;
+        line-height: 1;
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 8px;
+      }
+      p {
+        color: #7a6d63;
+        font-size: 14px;
+        line-height: 1.7;
+        margin: 0 0 20px;
+      }
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 8px;
+        background: #3b322b;
+        color: #fffdf7;
+        padding: 10px 20px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      a {
+        display: inline-block;
+        margin-top: 12px;
+        color: #7a6d63;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark">✂️</div>
+      <h1>当前处于离线状态</h1>
+      <p>
+        已保存的作品都在本地，不会丢失。<br />
+        恢复网络后即可继续浏览语料库、使用分词与导出功能。
+      </p>
+      <button onclick="location.reload()">重新连接</button>
+      <br />
+      <a href="/gallery">先去作品画廊</a>
+    </div>
+  </body>
+</html>

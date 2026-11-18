@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "id": "example_disabled",
+      "name": "示例来源（默认禁用，待确定真实站点后替换）",
+      "enabled": false,
+      "urls": ["https://example.com/articles"],
+      "content_selector": "article",
+      "title_selector": "h1",
+      "split_mode": "sentence",
+      "tags": ["示例"],
+      "author": "",
+      "_note": "新增真实来源：复制本对象，填入 id/name/urls/content_selector，把 enabled 改为 true"
+    }
+  ]
+}

@@ -1,5 +1,4 @@
 'use client';
 
-export function DeleteZone() {
-  return <div>DeleteZone Placeholder</div>;
-}
+// 兼容旧路径
+export { default } from '@/components/canvas/DeleteZone';

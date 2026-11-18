@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-18",
+  "source": "mock",
+  "fragments": [
+    { "id": "mock-01", "text": "长风破浪会有时", "source": "今日语料", "author": "李白", "posTag": "other", "wordCount": 7, "tags": ["励志", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-02", "text": "直挂云帆济沧海", "source": "今日语料", "author": "李白", "posTag": "other", "wordCount": 7, "tags": ["励志", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-03", "text": "会当凌绝顶", "source": "今日语料", "author": "杜甫", "posTag": "other", "wordCount": 5, "tags": ["山水", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-04", "text": "一览众山小", "source": "今日语料", "author": "杜甫", "posTag": "other", "wordCount": 5, "tags": ["山水", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-05", "text": "但愿人长久", "source": "今日语料", "author": "苏轼", "posTag": "other", "wordCount": 5, "tags": ["思念", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-06", "text": "千里共婵娟", "source": "今日语料", "author": "苏轼", "posTag": "other", "wordCount": 5, "tags": ["思念", "月亮", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-07", "text": "明月几时有", "source": "今日语料", "author": "苏轼", "posTag": "other", "wordCount": 5, "tags": ["月亮", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-08", "text": "把酒问青天", "source": "今日语料", "author": "苏轼", "posTag": "other", "wordCount": 5, "tags": ["月亮", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-09", "text": "寻寻觅觅", "source": "今日语料", "author": "李清照", "posTag": "other", "wordCount": 4, "tags": ["婉约", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-10", "text": "冷冷清清", "source": "今日语料", "author": "李清照", "posTag": "other", "wordCount": 4, "tags": ["婉约", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-11", "text": "凄凄惨惨戚戚", "source": "今日语料", "author": "李清照", "posTag": "other", "wordCount": 6, "tags": ["婉约", "宋词"], "corpusId": "crawled_today" },
+    { "id": "mock-12", "text": "落霞与孤鹜齐飞", "source": "今日语料", "author": "王勃", "posTag": "other", "wordCount": 7, "tags": ["写景", "古文"], "corpusId": "crawled_today" },
+    { "id": "mock-13", "text": "秋水共长天一色", "source": "今日语料", "author": "王勃", "posTag": "other", "wordCount": 7, "tags": ["写景", "古文"], "corpusId": "crawled_today" },
+    { "id": "mock-14", "text": "海内存知己", "source": "今日语料", "author": "王勃", "posTag": "other", "wordCount": 5, "tags": ["友情", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-15", "text": "天涯若比邻", "source": "今日语料", "author": "王勃", "posTag": "other", "wordCount": 5, "tags": ["友情", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-16", "text": "大漠孤烟直", "source": "今日语料", "author": "王维", "posTag": "other", "wordCount": 5, "tags": ["边塞", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-17", "text": "长河落日圆", "source": "今日语料", "author": "王维", "posTag": "other", "wordCount": 5, "tags": ["边塞", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-18", "text": "行到水穷处", "source": "今日语料", "author": "王维", "posTag": "other", "wordCount": 5, "tags": ["山水", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-19", "text": "坐看云起时", "source": "今日语料", "author": "王维", "posTag": "other", "wordCount": 5, "tags": ["山水", "唐诗"], "corpusId": "crawled_today" },
+    { "id": "mock-20", "text": "春风又绿江南岸", "source": "今日语料", "author": "王安石", "posTag": "other", "wordCount": 7, "tags": ["春天", "宋诗"], "corpusId": "crawled_today" }
+  ]
+}

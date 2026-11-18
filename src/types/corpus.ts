@@ -6,7 +6,9 @@ export type CorpusCategoryType =
   | 'modern_literature'
   | 'idiom'
   | 'daily_corpus'
-  | 'recommend_corpus';
+  | 'recommend_corpus'
+  | 'custom_corpus'
+  | 'favorites';
 
 /** 原始语料条目 — 从 JSON 加载时的结构 */
 export interface CorpusEntry {

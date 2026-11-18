@@ -1,10 +1,62 @@
 {
-  "name": "ClipPoems - 剪贴诗",
-  "short_name": "ClipPoems",
-  "description": "拼贴诗歌创作工具",
+  "id": "/",
+  "name": "ClipPoems · 剪贴诗",
+  "short_name": "剪贴诗",
+  "description": "从语料库拾取文字碎片，在画布上自由拼贴成诗的创作工具。",
+  "lang": "zh-CN",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
-  "icons": []
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f5f0e8",
+  "theme_color": "#f5f0e8",
+  "categories": ["art", "productivity", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "新建作品",
+      "short_name": "新建",
+      "url": "/editor/new",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "语料库",
+      "short_name": "语料",
+      "url": "/corpus",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "作品画廊",
+      "short_name": "画廊",
+      "url": "/gallery",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }

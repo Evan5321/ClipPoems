@@ -1,5 +1,4 @@
 'use client';
 
-export function LayerPanel() {
-  return <div>LayerPanel Placeholder</div>;
-}
+// 兼容旧路径
+export { default } from '@/components/canvas/LayerPanel';

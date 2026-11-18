@@ -2,11 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useCorpusStore } from '@/store/corpusStore';
-import { CORPUS_CATEGORIES } from '@/lib/corpus/loader';
 import TopNav from '@/components/layout/TopNav';
 
 export default function HomePage() {
-  const { isLoaded, isLoading, fragmentsByCategory } = useCorpusStore();
+  const { isLoaded, isLoading, fragmentsByCategory, categories, error } = useCorpusStore();
   const router = useRouter();
 
   // 新建作品：清空草稿槽后跳转，确保从空白开始
@@ -41,9 +40,15 @@ export default function HomePage() {
           </div>
         )}
 
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
         {isLoaded && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {CORPUS_CATEGORIES.map((cat) => {
+            {categories.map((cat) => {
               const fragments = fragmentsByCategory[cat.id];
               const count = fragments?.length || 0;
               return (

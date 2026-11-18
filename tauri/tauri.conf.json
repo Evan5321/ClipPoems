@@ -10,14 +10,37 @@
     "beforeBuildCommand": "pnpm build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ClipPoems - 剪贴诗",
-        "width": 1200,
-        "height": 800,
+        "label": "main",
+        "title": "ClipPoems · 剪贴诗",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 960,
+        "minHeight": 640,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": false
       }
-    ]
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "拼贴诗歌创作工具",
+    "longDescription": "ClipPoems 剪贴诗 — 从语料库拾取文字碎片，在画布上自由拼贴成诗。",
+    "icon": ["icons/icon.png"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }

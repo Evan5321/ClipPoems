@@ -10,7 +10,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 interface CanvasFragmentProps {
   fragment: CanvasFragment;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (additive?: boolean) => void;
   onUpdate: (updates: Partial<CanvasFragment>) => void;
   onDoubleClick?: () => void;
   canvasZoom?: number;
@@ -297,7 +297,7 @@ export default function CanvasFragmentComponent({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (!isEditing) onSelect();
+        if (!isEditing) onSelect(e.shiftKey);
       }}
       onDoubleClick={enterEdit}
     >

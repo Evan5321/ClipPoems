@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useCorpusStore } from '@/store/corpusStore';
 import { generateId } from '@/lib/utils/id';
 import type { PosTag } from '@/types/corpus';
 import { tokenizeText, fetchRecommendedWords } from '@/lib/corpus/tokenizer';
-import { Loader2, Sparkles, Plus, Check } from 'lucide-react';
+import { recommendRelated } from '@/lib/corpus/recommend';
+import { Loader2, Sparkles, Plus, Check, RefreshCw } from 'lucide-react';
 
 interface TokenWord {
   word: string;
@@ -24,14 +25,36 @@ const POS_GROUP_LABELS: Record<string, string> = {
 };
 
 export default function RecommendedWords() {
-  const { addFragment, selectedFragments } = useCorpusStore();
+  const { addFragment, selectedFragments, fragmentsByCategory } = useCorpusStore();
   const [inputText, setInputText] = useState('');
   const [words, setWords] = useState<TokenWord[]>([]);
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [recLoading, setRecLoading] = useState(false);
 
-  const selectedWords = new Set(selectedFragments.map((f) => f.text));
+  const selectedWords = useMemo(() => new Set(selectedFragments.map((f) => f.text)), [selectedFragments]);
+
+  // 全部语料池（用于本地关联推荐降级）
+  const pool = useMemo(() => {
+    const seen = new Set<string>();
+    return Object.values(fragmentsByCategory)
+      .flat()
+      .filter((f) => {
+        if (seen.has(f.text)) return false;
+        seen.add(f.text);
+        return true;
+      });
+  }, [fragmentsByCategory]);
+
+  // 已选词变化时自动生成关联推荐（本地算法，即时反馈）
+  useEffect(() => {
+    if (selectedFragments.length === 0) {
+      setRecommendations([]);
+      return;
+    }
+    const seeds = selectedFragments.slice(0, 5).map((f) => f.text);
+    setRecommendations(recommendRelated(seeds, pool, 12).map((f) => f.text));
+  }, [selectedFragments, pool]);
 
   // 自定义输入分词
   const handleTokenize = useCallback(async () => {
@@ -51,20 +74,25 @@ export default function RecommendedWords() {
     }
   }, [inputText]);
 
-  // 基于已选词获取推荐
+  // 基于已选词获取推荐：优先服务端，不足时用本地算法补足
   const handleRecommend = useCallback(async () => {
     if (selectedFragments.length === 0) return;
     setRecLoading(true);
     try {
-      const seeds = selectedFragments
-        .slice(0, 5)
-        .map((f) => f.text);
-      const recs = await fetchRecommendedWords(seeds);
-      setRecommendations(recs);
+      const seeds = selectedFragments.slice(0, 5).map((f) => f.text);
+      const local = recommendRelated(seeds, pool, 12).map((f) => f.text);
+      let remote: string[] = [];
+      try {
+        remote = await fetchRecommendedWords(seeds);
+      } catch {
+        remote = [];
+      }
+      const merged = Array.from(new Set([...remote, ...local])).slice(0, 16);
+      setRecommendations(merged);
     } finally {
       setRecLoading(false);
     }
-  }, [selectedFragments]);
+  }, [selectedFragments, pool]);
 
   // 添加词为碎片
   const handleAddWord = useCallback(
@@ -160,21 +188,21 @@ export default function RecommendedWords() {
       {/* 推荐区 */}
       {selectedFragments.length > 0 && (
         <div className="space-y-2">
-          <button
-            onClick={handleRecommend}
-            disabled={recLoading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
-          >
-            {recLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            基于已选词推荐更多
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">关联推荐 · 基于已选 {selectedFragments.length} 个碎片</span>
+            <button
+              onClick={handleRecommend}
+              disabled={recLoading}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary disabled:opacity-50"
+              title="从语料库服务获取更多推荐（本地算法自动补足）"
+            >
+              {recLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              换一批
+            </button>
+          </div>
 
           {recommendations.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-2">
+            <div className="flex flex-wrap gap-1.5 pt-1">
               {recommendations.map((rec, i) => {
                 const isSelected = selectedWords.has(rec);
                 return (

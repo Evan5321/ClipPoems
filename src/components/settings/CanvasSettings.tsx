@@ -297,21 +297,39 @@ export default function CanvasSettings() {
           </button>
         </div>
         {grid.enabled && (
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">间距</span>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="range"
-                min={5}
-                max={80}
-                step={1}
-                value={grid.spacing}
-                onChange={(e) => setGrid({ ...grid, spacing: Number(e.target.value) })}
-                className="h-1.5 w-24 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
-              />
-              <span className="w-8 text-[11px] tabular-nums text-muted-foreground">{grid.spacing}px</span>
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">间距</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="range"
+                  min={5}
+                  max={80}
+                  step={1}
+                  value={grid.spacing}
+                  onChange={(e) => setGrid({ ...grid, spacing: Number(e.target.value) })}
+                  className="h-1.5 w-24 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
+                />
+                <span className="w-8 text-[11px] tabular-nums text-muted-foreground">{grid.spacing}px</span>
+              </div>
             </div>
-          </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">吸附网格</span>
+              <button
+                onClick={() => setGrid({ ...grid, snap: !grid.snap })}
+                className={`relative h-5 w-9 rounded-full transition-colors ${
+                  grid.snap ? 'bg-primary' : 'bg-secondary'
+                }`}
+                aria-label="切换网格吸附"
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    grid.snap ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          </>
         )}
       </Section>
 

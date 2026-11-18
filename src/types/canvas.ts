@@ -43,6 +43,8 @@ export interface CanvasBackground {
 export interface CanvasGrid {
   enabled: boolean;
   spacing: number;
+  /** 拖动碎片时是否吸附到网格 */
+  snap?: boolean;
 }
 
 /** 全局文字默认样式（新建碎片的初始样式） */

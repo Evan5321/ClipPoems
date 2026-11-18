@@ -18,6 +18,14 @@ export const CORPUS_CATEGORIES: CorpusCategory[] = [
   { id: 'daily_corpus',      label: '日常语料', icon: '💬', description: '日常用语和口语表达', count: 0 },
 ];
 
+/** 用户自定义 / 收藏（本地存储，动态生成内容） */
+export const USER_CATEGORIES: CorpusCategory[] = [
+  { id: 'custom_corpus', label: '自定义语料', icon: '📥', description: '导入的 TXT / MD / CSV 语料', count: 0 },
+  { id: 'favorites',     label: '我的收藏',   icon: '⭐', description: '收藏的语料碎片', count: 0 },
+];
+
+export const ALL_CATEGORIES: CorpusCategory[] = [...CORPUS_CATEGORIES, ...USER_CATEGORIES];
+
 /* ===== 语料库元数据 ===== */
 
 export const BUILTIN_CORPORA: Corpus[] = [
