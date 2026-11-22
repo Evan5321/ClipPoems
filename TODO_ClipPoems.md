@@ -179,46 +179,57 @@
 
 ## 🔥 下一阶段优先（2026-11-18 起）：网络爬取语料 + 语料市场
 
+> **开发计划调整（2026-11-19）**：
+> 1. 当前优先完成 **语料市场的前端界面**（B 部分）→ ✅ 已完成（2026-11-22）
+> 2. 后端采集的语料先以 **JSON 方式本地化留存** → ✅ 已实现（corpus-service/data/）
+> 3. 待**用户系统开发完毕**后，引入外部 **MySQL 服务器**，将爬取的语料**异步同步**到 MySQL 数据库。
+> 4. **弃用 Python 内嵌的 SQLite 方案**，统一转向外部 MySQL 数据库。
+
 > 已与用户对齐的决策：
 > 1. **网络爬取 = 后端采集框架**，不做前端「输入 URL 抓取」界面；爬取产出以「今日语料」板块展示在语料市场。
 > 2. **爬取源网站待定**，先做可扩展框架 + mock 兜底。
 > 3. 入库走「预览确认」流程。
 > 4. **语料市场两步走**：先做本地界面 + 导入/导出分享（无需后端），后续再加在线上传/下载后端。
 > 5. 市场内容 = 「今日语料」+「官方精选语料包」；内置语料不重复进市场。
-> 6. 爬取结果存 **JSON 文件**（corpus-service/data/），量大后再迁 SQLite。
+> 6. 爬取结果先以 **JSON 文件**本地化留存（corpus-service/data/）；用户系统完成后异步同步至外部 **MySQL**（已弃用 SQLite 方案）。
 
-### A. 网络爬取（后端框架，无前端主动爬取界面）
+### A. 网络爬取（后端框架，无前端主动爬取界面）✅ 框架已完成
 
 **后端 corpus-service**
 
-- [ ] ⏳ 在 `main.py` 注册 `routers/crawl.py` 路由（当前未注册）
-- [ ] ⏳ 爬取源配置：`corpus-service/config/crawler_sources.json`（来源列表，可扩展，先留空 + 示例项）
-- [ ] ⏳ `services/crawler.py`：通用抓取引擎（httpx 抓 HTML → beautifulsoup4 按 selector 提取正文 → 清洗去标签/广告/空白 → jieba 分句切分 → 生成碎片）
-- [ ] ⏳ 爬取结果存储：`corpus-service/data/crawled/{source}/{date}.json`
-- [ ] ⏳ mock 兜底数据：`corpus-service/data/mock_today.json`（预置一份今日语料，无真实爬取时返回）
-- [ ] ⏳ API：`GET /api/crawl/today` → 今日语料（真实为空时返回 mock）
-- [ ] ⏳ API：`POST /api/crawl/run?source=xxx` → 手动触发某来源爬取（框架调试用）
-- [ ] ⏳ API：`GET /api/crawl/sources` → 列出已配置来源
+- [X] ✅ 在 `main.py` 注册 `routers/crawl.py` 路由
+- [X] ✅ 爬取源配置：`corpus-service/config/crawler_sources.json`（来源列表，可扩展，先留空 + 示例项）
+- [X] ✅ `services/crawler.py`：通用抓取引擎（httpx 抓 HTML → beautifulsoup4 按 selector 提取正文 → 清洗去标签/广告/空白 → 分句切分 → 生成碎片）
+- [X] ✅ 爬取结果存储：`corpus-service/data/crawled/{source}/{date}.json`
+- [X] ✅ mock 兜底数据：`corpus-service/data/mock_today.json`（预置一份今日语料，无真实爬取时返回）
+- [X] ✅ API：`GET /api/crawl/today` → 今日语料（真实为空时返回 mock）
+- [X] ✅ API：`POST /api/crawl/run?source=xxx` → 手动触发某来源爬取（框架调试用）
+- [X] ✅ API：`GET /api/crawl/sources` → 列出已配置来源
 
 **前端**
 
-- [ ] ⏳ `src/lib/corpus/crawl.ts`：封装调用 `/api/crawl/today`（后端不可用时降级返回空 + 提示）
-- [ ] 不做前端主动输入 URL 的爬取界面
+- [X] ✅ 后端访问层（升级为统一代理出口，替代原 `crawl.ts` 方案）：
+  - `src/lib/api/corpusService.ts` — 代理配置（`CORPUS_SERVICE_URL` + 路径映射表）
+  - `src/app/api/market/[...path]/route.ts` — `/api/market/*` 统一出口（转发 / 8s 超时 / 503/502/404 结构化降级）
+  - `src/lib/api/market.ts` — `fetchTodayCorpus()` / `fetchMarketPacks()`，DTO→领域模型转换，失败自动降级
+- [X] ✅ 不做前端主动输入 URL 的爬取界面
 
-### B. 语料市场（前端界面，第一步本地）
+### B. 语料市场（前端界面，第一步本地）✅ 已完成
 
-- [ ] ⏳ 新增路由 `/market` 页面 + `TopNav` 入口
-- [ ] ⏳ 定义 `MarketPack` 类型（与本地自定义语料包格式兼容，导入可直接转换）
-- [ ] ⏳ 官方精选语料包预置：从 `corpus-data/` 精选打包为 `MarketPack` JSON，放 `src/data/market/`
-- [ ] ⏳ 市场首页：①「今日语料」板块（消费 `/api/crawl/today`）②「官方精选语料包」卡片网格 ③ 搜索 + 分类筛选
-- [ ] ⏳ 语料包详情：预览碎片列表 →「导入到我的语料」→ 走预览确认流程（复用 `CorpusImportDialog` / `importCorpusPack`）
-- [ ] ⏳ 「我的语料包」区：列出本地自定义语料包 → 导出 JSON / 删除 / 重命名（复用 `CustomCorpusManager` 能力）
-- [ ] ⏳ 一键导入市场语料包到本地自定义语料库（复用 `importCorpusPack`）
+- [X] ✅ 新增路由 `/market` 页面 + `TopNav` 入口
+- [X] ✅ 定义 `MarketPack` 类型（与本地自定义语料包格式兼容，导入可直接转换）
+- [X] ✅ 官方精选语料包预置：5 个预置包（唐诗名句/宋词雅集/现代诗歌/成语典故/日常短语），放 `src/data/market/packs.ts`
+- [X] ✅ 市场首页：①「今日语料」板块（经代理消费 `/api/crawl/today`，空状态占位 + 失败原因提示）②「官方精选语料包」卡片网格（在线语料/本地预置徽标）③ 搜索 + 分类筛选
+- [X] ✅ 语料包详情：预览碎片列表弹窗 →「导入到我的语料」（走 `importCorpusPack`）
+- [X] ✅ 「我的语料包」区：列出本地自定义语料包 → 导出 JSON / 删除 / 重命名 / 查看碎片
+- [X] ✅ 一键导入市场语料包到本地自定义语料库（已导入状态标记）
 
 ### C. 后续（第二步在线，暂不开始）
 
+- [ ] ⏳ 后端实现 `GET /api/market/packs` 语料包列表接口（前端已就绪，实现后市场自动切换「在线语料」）
+- [ ] ⏳ 接入真实爬取源网站（待定，当前 `crawler_sources.json` 仅示例项）
+- [ ] ⏳ 用户系统开发完毕后：引入外部 MySQL 服务器，爬取语料异步同步入库（替代原 SQLite 方案）
 - [ ] ⏳ 后端在线市场：语料包上传 / 下载 / 点赞 / 用户分享
-- [ ] ⏳ 接入真实爬取源网站（待定）
 
 ## Phase 6：语料扩展（约 4 天）
 
@@ -256,7 +267,7 @@ M1: 核心引擎 (Phase 0+1+2)     ✅ 已达成 → 可拖拽拼贴 + 语料选
 M2: 视觉打磨 (Phase 3)          ✅ 已达成 → 纸片效果 + 背景/字体设置 + 导出
 M3: 体验优化 (Phase 4)          ✅ 已达成 → 快捷键 + 撤销重做 + 对齐辅助 + 响应式
 M4: 跨平台 (Phase 5)            ⏸️ 已搁置 → PWA + Tauri 桌面端（转去语料爬取与市场）
-M5: 语料爬取与市场              🔄 进行中 → 后端爬取框架 + 今日语料 + 语料市场界面
+M5: 语料爬取与市场              🔄 进行中 → 后端爬取框架 ✅ + 语料市场界面 ✅；剩余：真实爬取源接入 + /api/market/packs 在线接口
 ```
 
 ## 已完成的工具库（等待 UI 接入）

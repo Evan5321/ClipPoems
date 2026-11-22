@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, BookOpen, FolderOpen, Scissors } from 'lucide-react';
+import { Home, BookOpen, FolderOpen, Scissors, Store } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useCorpusStore } from '@/store/corpusStore';
 
 const NAV_ITEMS = [
   { href: '/', label: '首页', icon: Home },
   { href: '/corpus', label: '语料库', icon: BookOpen },
+  { href: '/market', label: '语料市场', icon: Store },
   { href: '/editor/new', label: '新建作品', icon: Scissors, clearDraft: true },
   { href: '/gallery', label: '作品画廊', icon: FolderOpen },
 ];

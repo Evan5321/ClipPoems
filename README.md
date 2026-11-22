@@ -34,6 +34,15 @@ ClipPoems 是一个拼贴诗歌创作工具。内置古典诗词、成语、现�
 - **导出**：PNG 高清图片（2x）、纯文本（按位置排序）
 - **未保存保护**：脏状态追踪，离开编辑器弹出确认框，浏览器关闭/刷新触发原生未保存提示
 
+### 语料市场
+
+- **今日语料**：展示后端爬取服务每日产出（mock 示例兜底），支持手动刷新
+- **官方精选语料包**：5 个预置包（唐诗名句 / 宋词雅集 / 现代诗歌 / 成语典故 / 日常短语），搜索 + 分类筛选，卡片预览
+- **一键导入**：语料包预览确认后导入本地自定义语料库，编辑器中随时取用
+- **我的语料包**：列出本地语料包，支持查看碎片、导出 JSON、重命名、删除
+- **后端访问框架**：前端经 `/api/market/*` 同源代理访问 corpus-service，未接入时自动降级为本地预置内容
+- **社区分享**：占位板块，用户系统上线后开放上传分享 / 点赞收藏 / 排行榜
+
 ### 快捷键
 
 | 快捷键                     | 功能                |
@@ -53,8 +62,9 @@ ClipPoems 是一个拼贴诗歌创作工具。内置古典诗词、成语、现�
 | 拖拽       | @dnd-kit                                        |
 | 画布导出   | html2canvas                                     |
 | 中文分词   | Python FastAPI + jieba（可选，前端有离线降级）  |
-| 数据持久化 | localStorage（作品库、草稿、碎片组）            |
-| 桌面端     | Tauri (Rust)（骨架已搭建）                      |
+| 语料爬取   | httpx + BeautifulSoup（corpus-service 爬取框架） |
+| 数据持久化 | localStorage（作品库、草稿、碎片组、语料包）    |
+| 桌面端     | Tauri (Rust)（骨架已搭建，当前搁置）            |
 
 ## 项目结构
 
@@ -65,7 +75,9 @@ ClipPoems/
 │   │   ├── page.tsx                # 首页
 │   │   ├── editor/[id]/            # 拼贴编辑器
 │   │   ├── corpus/                 # 语料库浏览页
-│   │   └── gallery/                # 作品画廊
+│   │   ├── market/                 # 语料市场
+│   │   ├── gallery/                # 作品画廊
+│   │   └── api/market/[...path]/   # 语料市场后端代理出口（转发 corpus-service）
 │   ├── components/
 │   │   ├── canvas/                 # 画布组件 (Canvas, CanvasFragment, Toolbar, LayerPanel...)
 │   │   ├── corpus/                 # 语料组件 (CorpusPanel, FragmentGrid, WordSelector...)
@@ -75,12 +87,18 @@ ClipPoems/
 │   ├── store/                      # Zustand 状态 (canvasStore, corpusStore, uiStore)
 │   ├── hooks/                      # 自定义 Hooks (useAutoSave, useKeyboard, usePanelResize)
 │   ├── lib/
+│   │   ├── api/                    # 后端访问层 (corpusService 代理配置, market 市场接口)
 │   │   ├── canvas/                 # 画布逻辑 (clipPaths, export, storage, alignment)
 │   │   ├── corpus/                 # 语料逻辑 (loader, search, tokenizer, fragmentGroups)
-│   │   └── utils/                  # 工具函数
+│   │   ├── utils/                  # 工具函数
+│   │   └── data/market/            # 官方精选语料包预置数据
 │   └── types/                      # TypeScript 类型定义
 ├── corpus-data/                    # 内置语料 JSON 数据
-├── corpus-service/                 # Python 分词微服务 (FastAPI + jieba)
+├── corpus-service/                 # Python 微服务 (FastAPI + jieba 分词 + 语料爬取框架)
+│   ├── routers/                    # tokenize / corpus / crawl 路由
+│   ├── services/                   # tokenizer / crawler / cleaner
+│   ├── config/crawler_sources.json # 爬取源配置（可扩展，当前为示例项）
+│   └── data/                       # mock_today.json / crawled/{source}/{date}.json
 ├── prisma/                         # Prisma schema (SQLite)
 ├── tauri/                          # Tauri 桌面应用骨架
 └── public/                         # 静态资源 (manifest, service worker)
@@ -104,25 +122,38 @@ pnpm install
 pnpm dev
 # → http://localhost:3000
 
-# 2b. 同时运行前端 + Python 分词服务（完整功能）
+# 2b. 同时运行前端 + Python 服务（完整功能：分词 + 语料爬取/今日语料）
 cd corpus-service && pip install -e . && cd ..
 pnpm dev:all
-# → 前端 http://localhost:3000 | 分词服务 http://localhost:8000
+# → 前端 http://localhost:3000 | Python 服务 http://localhost:8000
 ```
+
+> 语料市场「今日语料」依赖 Python 服务的 `GET /api/crawl/today`；服务未启动时页面自动显示占位提示，其余功能不受影响。
 
 ### 可用脚本
 
-| 命令               | 说明                           |
-| ------------------ | ------------------------------ |
-| `pnpm dev`       | 启动开发服务器                 |
-| `pnpm dev:all`   | 同时启动前端 + Python 分词服务 |
-| `pnpm build`     | 构建生产版本                   |
-| `pnpm start`     | 运行生产版本                   |
-| `pnpm lint`      | ESLint 代码检查                |
-| `pnpm format`    | Prettier 格式化                |
-| `pnpm corpus`    | 单独启动 Python 分词服务       |
-| `pnpm db:push`   | 初始化 SQLite 数据库           |
-| `pnpm db:studio` | Prisma Studio 可视化数据库     |
+| 命令               | 说明                                   |
+| ------------------ | -------------------------------------- |
+| `pnpm dev`       | 启动开发服务器                         |
+| `pnpm dev:all`   | 同时启动前端 + Python 服务             |
+| `pnpm build`     | 构建生产版本                           |
+| `pnpm start`     | 运行生产版本                           |
+| `pnpm lint`      | ESLint 代码检查                        |
+| `pnpm format`    | Prettier 格式化                        |
+| `pnpm corpus`    | 单独启动 Python 服务                   |
+| `pnpm db:push`   | 初始化 SQLite 数据库                   |
+| `pnpm db:studio` | Prisma Studio 可视化数据库             |
+
+### corpus-service API
+
+| 接口                        | 说明                                     |
+| --------------------------- | ---------------------------------------- |
+| `GET /api/crawl/today`    | 今日语料（真实爬取为空时返回 mock 兜底） |
+| `POST /api/crawl/run`     | 手动触发爬取（可指定 source id）         |
+| `GET /api/crawl/sources`  | 列出已配置爬取源                         |
+| `POST /api/tokenize`      | 中文分词（词性 / 停用词 / 权重可选）     |
+| `GET /api/corpus/search`  | 语料搜索                                 |
+| `GET /api/corpus/recommend` | 关联词推荐                             |
 
 ## 部署
 
@@ -135,7 +166,7 @@ pnpm dev:all
 | **Cloudflare Pages** | 免费 CDN，通过`@cloudflare/next-on-pages` 适配 |
 | **GitHub Pages**     | 需`output: 'export'` 静态导出，不支持 SSR      |
 
-如需完整的分词功能，可将 Python 分词服务单独部署到 Render / Railway / Fly.io 的免费容器，前端通过环境变量指向该 API 地址。
+如需完整的分词与语料爬取功能，可将 Python 服务单独部署到 Render / Railway / Fly.io 的免费容器，前端通过环境变量 `CORPUS_SERVICE_URL` 指向该地址（经 `/api/market/*` 同源代理访问）。
 
 ## 桌面应用
 
